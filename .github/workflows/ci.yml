@@ -8,6 +8,11 @@ permissions:
   pages: write
   id-token: write
 
+# 1 つの同時デプロイメントを可能にする
+concurrency:
+  group: 'pages'
+  cancel-in-progress: true
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -15,9 +20,10 @@ jobs:
       - uses: actions/checkout@v3
       - uses: actions/setup-node@v3
         with:
-          node-version: '19.9'
+          node-version: 19
+          cache: 'npm'
 
-      - name: Install
+      - name: Install Rust
         run: curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
 
       - name: CI
@@ -38,8 +44,12 @@ jobs:
       - name: Set up Node
         uses: actions/setup-node@v3
         with:
-          node-version: 18
+          node-version: 19
           cache: 'npm'
+
+      - name: Install Rust
+        run: curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
+
       - name: Install dependencies
         run: npm install
       - name: Build
