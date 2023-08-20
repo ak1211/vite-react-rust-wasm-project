@@ -2,9 +2,6 @@ name: CI
 
 on: [push, pull_request]
 
-# Actions タブから手動でワークフローを実行できるようにします
-  workflow_dispatch:
-
 # GITHUB_TOKEN のパーミッションを設定し、GitHub Pages へのデプロイを許可します
 permissions:
   contents: read
