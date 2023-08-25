@@ -13,6 +13,7 @@ use nom::{
     sequence::{delimited, tuple},
     Finish, IResult,
 };
+use std::error::Error;
 
 // 入力文字列を16進数として解釈する。
 fn from_hexadecimal_str(s: &str) -> Result<u8, std::num::ParseIntError> {
@@ -22,7 +23,7 @@ fn from_hexadecimal_str(s: &str) -> Result<u8, std::num::ParseIntError> {
 // 4桁の16進数(16ビット)
 fn four_digits_hexadecimal_lsb_first(
     s: &str,
-) -> IResult<&str, IrCarrierCounter, VerboseError<&str>> {
+) -> IResult<&str, IrCarrierCounter, nom::error::VerboseError<&str>> {
     // 2桁の16進数(8ビット)
     fn two_digits_hexadecimal(input: &str) -> IResult<&str, u8, VerboseError<&str>> {
         let hexadecimal_8bits_str = take_while_m_n(2, 2, |c: char| c.is_digit(16));
@@ -125,7 +126,7 @@ fn parse_pigpio_irrp_format(s: &str) -> IResult<&str, Vec<MarkAndSpaceMicros>, V
 }
 
 // 入力文字列のパーサー
-pub fn parse_infrared_code_text(input: &str) -> Result<Vec<MarkAndSpaceMicros>, String> {
+pub fn parse_infrared_code_text(input: &str) -> Result<Vec<MarkAndSpaceMicros>, Box<dyn Error>> {
     alt((
         parse_onoff_pair_format,
         parse_json_array_format,
@@ -133,123 +134,112 @@ pub fn parse_infrared_code_text(input: &str) -> Result<Vec<MarkAndSpaceMicros>, 
     ))(input)
     .finish()
     .map(|(_, v)| v)
-    .map_err(|e| convert_error(input, e))
+    .map_err(|e| convert_error(input, e).into())
 }
 
 #[cfg(test)]
 mod parsing_tests {
-    use crate::infrared_remote::{IrCarrierCounter, MarkAndSpaceIrCarrier};
+    use crate::infrared_remote::IrCarrierCounter;
     use crate::parsing::*;
     #[test]
     fn test1_parse_infrared_code_text() {
-        assert_eq!(
-            parse_infrared_code_text("5601AA00"),
-            Ok(vec![(
-                IrCarrierCounter(0x0156).into(),
-                IrCarrierCounter(0x00AA).into()
-            )
-                .into()])
-        );
+        let x = parse_infrared_code_text("5601AA00").unwrap();
+        let y = vec![MarkAndSpaceMicros::from((
+            IrCarrierCounter(0x0156).into(),
+            IrCarrierCounter(0x00AA).into(),
+        ))];
+        assert_eq!(x, y);
     }
 
     #[test]
     fn test2_parse_infrared_code_text() {
-        assert_eq!(
-            parse_infrared_code_text("5601AA00 17001500"),
-            Ok(vec![
-                (
-                    IrCarrierCounter(0x0156).into(),
-                    IrCarrierCounter(0x00AA).into()
-                )
-                    .into(),
-                (
-                    IrCarrierCounter(0x0017).into(),
-                    IrCarrierCounter(0x0015).into()
-                )
-                    .into(),
-            ])
-        );
+        let x = parse_infrared_code_text("5601AA0017001500").unwrap();
+        let y = vec![
+            MarkAndSpaceMicros::from((
+                IrCarrierCounter(0x0156).into(),
+                IrCarrierCounter(0x00AA).into(),
+            )),
+            MarkAndSpaceMicros::from((
+                IrCarrierCounter(0x0017).into(),
+                IrCarrierCounter(0x0015).into(),
+            )),
+        ];
+        assert_eq!(x, y);
     }
 
     #[test]
     fn test3_parse_infrared_code_text() {
-        assert_eq!(
-            parse_infrared_code_text("5601AA00 17001500"),
-            Ok(vec![
-                MarkAndSpaceIrCarrier {
-                    mark: IrCarrierCounter(0x0156),
-                    space: IrCarrierCounter(0x00AA),
-                }
-                .into(),
-                MarkAndSpaceIrCarrier {
-                    mark: IrCarrierCounter(0x0017),
-                    space: IrCarrierCounter(0x0015),
-                }
-                .into()
-            ])
-        );
+        let x = parse_infrared_code_text("5601AA00 17001500").unwrap();
+        let y = vec![
+            MarkAndSpaceMicros::from((
+                IrCarrierCounter(0x0156).into(),
+                IrCarrierCounter(0x00AA).into(),
+            )),
+            MarkAndSpaceMicros::from((
+                IrCarrierCounter(0x0017).into(),
+                IrCarrierCounter(0x0015).into(),
+            )),
+        ];
+        assert_eq!(x, y);
     }
 
     #[test]
     fn test4_parse_infrared_code_text() {
-        assert_eq!(
-            parse_infrared_code_text("5601AA00 17001500"),
-            Ok(vec![
-                (Microseconds(9000), Microseconds(4473)).into(),
-                (Microseconds(605), Microseconds(552)).into(),
-            ])
-        );
+        let x = parse_infrared_code_text("5601AA00 17001500").unwrap();
+        let y = vec![
+            MarkAndSpaceMicros::from((Microseconds(9000), Microseconds(4473))),
+            MarkAndSpaceMicros::from((Microseconds(605), Microseconds(552))),
+        ];
+        assert_eq!(x, y);
     }
 
     #[test]
     fn test5_parse_infrared_code_text() {
-        assert_eq!(
-            parse_infrared_code_text("[ 9000, 4473 , 605, 552, ]"),
-            Ok(vec![
-                (Microseconds(9000), Microseconds(4473)).into(),
-                (Microseconds(605), Microseconds(552)).into(),
-            ])
-        );
+        let x = parse_infrared_code_text("[ 9000, 4473 , 605, 552, ]").unwrap();
+        let y = vec![
+            MarkAndSpaceMicros::from((Microseconds(9000), Microseconds(4473))),
+            MarkAndSpaceMicros::from((Microseconds(605), Microseconds(552))),
+        ];
+        assert_eq!(x, y);
     }
 
     #[test]
     fn test6_parse_infrared_code_text() {
-        assert_eq!(
-            parse_infrared_code_text(r#" { "data": [9000, 4473, 605, 552, ] } "#),
-            Ok(vec![
-                (Microseconds(9000), Microseconds(4473)).into(),
-                (Microseconds(605), Microseconds(552)).into(),
-            ])
-        );
+        let x = parse_infrared_code_text(r#" { "data": [9000, 4473, 605, 552, ] } "#).unwrap();
+        let y = vec![
+            MarkAndSpaceMicros::from((Microseconds(9000), Microseconds(4473))),
+            MarkAndSpaceMicros::from((Microseconds(605), Microseconds(552))),
+        ];
+        assert_eq!(x, y);
     }
 
     #[test]
     fn test7_parse_infrared_code_text() {
-        assert_eq!(
-            parse_infrared_code_text(r#" { "name" : [ 417 , 448 ] } "#),
-            Ok(vec![(Microseconds(417), Microseconds(448)).into(),])
-        );
+        let x = parse_infrared_code_text(r#" { "name" : [ 417 , 448 ] } "#).unwrap();
+        let y = vec![MarkAndSpaceMicros::from((
+            Microseconds(417),
+            Microseconds(448),
+        ))];
+        assert_eq!(x, y);
     }
 
     #[test]
     fn test8_parse_infrared_code_text() {
-        assert_eq!(
-            parse_infrared_code_text(r#"{"name":[417,448,418,]}"#),
-            Ok(vec![
-                (Microseconds(417), Microseconds(448)).into(),
-                (Microseconds(418), Microseconds(35000)).into(),
-            ])
-        );
+        let x = parse_infrared_code_text(r#"{"name":[417,448,418,]}"#).unwrap();
+        let y = vec![
+            MarkAndSpaceMicros::from((Microseconds(417), Microseconds(448))),
+            MarkAndSpaceMicros::from((Microseconds(418), Microseconds(35000))),
+        ];
+        assert_eq!(x, y);
     }
 
     #[test]
     fn test9_parse_infrared_code_text() {
-        assert_eq!(
-            parse_infrared_code_text(r#" { "name" : [ 417  , 448 , 418 , 450,  ] } "#),
-            Ok(vec![
-                (Microseconds(417), Microseconds(448)).into(),
-                (Microseconds(418), Microseconds(450)).into(),
-            ])
-        );
+        let x = parse_infrared_code_text(r#" { "name" : [ 417  , 448 , 418 , 450,  ] } "#).unwrap();
+        let y = vec![
+            MarkAndSpaceMicros::from((Microseconds(417), Microseconds(448))),
+            MarkAndSpaceMicros::from((Microseconds(418), Microseconds(450))),
+        ];
+        assert_eq!(x, y);
     }
 }

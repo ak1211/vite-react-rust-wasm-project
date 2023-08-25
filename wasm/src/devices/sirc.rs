@@ -184,32 +184,10 @@ fn decode_sub(command: &[Bit], address: &[Bit]) -> Option<Sirc> {
     }
 }
 
-fn bits_to_lsb_first(v: &[Bit]) -> usize {
-    let lo = false.into();
-    let mut w = v.to_owned();
-    w.reverse();
-    w.iter()
-        .fold(0usize, |acc, x| acc * 2 + if *x == lo { 0 } else { 1 })
-}
-
-#[test]
-fn test1_bits_to_lsb_first() {
-    let hi = true.into();
-    let lo = false.into();
-    assert_eq!(bits_to_lsb_first(&[hi, lo, hi, lo, hi, lo, lo]), 21);
-}
-
-#[test]
-fn test2_bits_to_lsb_first() {
-    let hi = true.into();
-    let lo = false.into();
-    assert_eq!(bits_to_lsb_first(&[hi, lo, lo, lo, lo]), 1);
-}
-
 #[test]
 fn test1_decode_sirc() {
-    let hi = true.into();
-    let lo = false.into();
+    let hi = Bit::Hi;
+    let lo = Bit::Lo;
     let protocol = vec![InfraredRemoteDecordedFrame::Sirc12(ProtocolSirc12 {
         command: [hi, lo, hi, lo, hi, lo, lo],
         address: [hi, lo, lo, lo, lo],

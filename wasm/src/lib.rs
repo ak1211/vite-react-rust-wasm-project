@@ -30,7 +30,8 @@ export function wasm_parse_infrared_code(ircode: string): MarkAndSpaceMicros;
 "#;
 #[wasm_bindgen(skip_typescript)]
 pub fn wasm_parse_infrared_code(ircode: &str) -> Result<JsValue, String> {
-    let mark_and_spaces: Vec<MarkAndSpaceMicros> = parse_infrared_code_text(ircode)?;
+    let mark_and_spaces: Vec<MarkAndSpaceMicros> =
+        parse_infrared_code_text(ircode).map_err(|e| e.to_string())?;
     serde_wasm_bindgen::to_value(&mark_and_spaces).map_err(|e| e.to_string())
 }
 
@@ -42,7 +43,8 @@ export function wasm_decode_phase1(input: MarkAndSpaceMicros[]): InfraredRemoteF
 pub fn wasm_decode_phase1(input: JsValue) -> Result<JsValue, String> {
     let mark_and_spaces: Vec<MarkAndSpaceMicros> =
         serde_wasm_bindgen::from_value(input).map_err(|e| e.to_string())?;
-    let ir_frames: Vec<InfraredRemoteFrame> = decode_phase1(&mark_and_spaces)?;
+    let ir_frames: Vec<InfraredRemoteFrame> =
+        decode_phase1(&mark_and_spaces).map_err(|e| e.to_string())?;
     serde_wasm_bindgen::to_value(&ir_frames).map_err(|e| e.to_string())
 }
 
@@ -66,7 +68,8 @@ export function wasm_decode_phase3(input: InfraredRemoteDemodulatedFrame): Infra
 pub fn wasm_decode_phase3(input: JsValue) -> Result<JsValue, String> {
     let demodulated_frame: InfraredRemoteDemodulatedFrame =
         serde_wasm_bindgen::from_value(input).map_err(|e| e.to_string())?;
-    let protocol: InfraredRemoteDecordedFrame = decode_phase3(&demodulated_frame)?;
+    let protocol: InfraredRemoteDecordedFrame =
+        decode_phase3(&demodulated_frame).map_err(|e| e.to_string())?;
     serde_wasm_bindgen::to_value(&protocol).map_err(|e| e.to_string())
 }
 

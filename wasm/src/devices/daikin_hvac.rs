@@ -225,14 +225,6 @@ fn decode_sub(frame: &ProtocolAeha) -> Option<DaikinHvac> {
     }
 }
 
-fn bits_to_lsb_first(v: &[Bit]) -> usize {
-    let lo = false.into();
-    let mut w = v.to_owned();
-    w.reverse();
-    w.iter()
-        .fold(0usize, |acc, x| acc * 2 + if *x == lo { 0 } else { 1 })
-}
-
 /// Daikin HVAC first frame value (comfort mode)
 fn take_comfort_mode(frame: &InfraredRemoteDecordedFrame) -> Option<ComfortMode> {
     let comfort_mode_enabled: InfraredRemoteDecordedFrame =
@@ -247,7 +239,7 @@ fn take_comfort_mode(frame: &InfraredRemoteDecordedFrame) -> Option<ComfortMode>
                 from_binary_string("10000000").unwrap(), // 10 (LSB first)
                 from_binary_string("11100111").unwrap(), // e7 (LSB first)
             ],
-            stop: Bit::new(1),
+            stop: Bit::new(1).unwrap(),
         });
     let comfort_mode_disabled: InfraredRemoteDecordedFrame =
         InfraredRemoteDecordedFrame::Aeha(ProtocolAeha {
@@ -261,7 +253,7 @@ fn take_comfort_mode(frame: &InfraredRemoteDecordedFrame) -> Option<ComfortMode>
                 from_binary_string("00000000").unwrap(), // 00 (LSB first)
                 from_binary_string("11101011").unwrap(), // d7 (LSB first)
             ],
-            stop: Bit::new(1),
+            stop: Bit::new(1).unwrap(),
         });
     match *frame {
         _ if *frame == comfort_mode_enabled => Some(ComfortMode(true)),
@@ -283,7 +275,7 @@ fn constraint_second_frame() -> InfraredRemoteDecordedFrame {
             from_binary_string("00000000").unwrap(), // 00 (LSB first) | 00 (MSB first)
             from_binary_string("00101010").unwrap(), // 54 (LSB first) | 2a (MSB first)
         ],
-        stop: Bit::new(1),
+        stop: Bit::new(1).unwrap(),
     })
 }
 

@@ -135,14 +135,6 @@ fn decode_sub(frame: &ProtocolAeha) -> Option<HitachiHvac> {
     }
 }
 
-fn bits_to_lsb_first(v: &[Bit]) -> usize {
-    let lo = false.into();
-    let mut w = v.to_owned();
-    w.reverse();
-    w.iter()
-        .fold(0usize, |acc, x| acc * 2 + if *x == lo { 0 } else { 1 })
-}
-
 //
 // Hitachi HVAC first 9bytes value is
 // LSB first                                        -- MSB first

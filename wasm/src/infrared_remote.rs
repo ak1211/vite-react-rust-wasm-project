@@ -4,13 +4,29 @@
 //
 use crate::devices;
 use nonempty::NonEmpty;
-use serde::{Deserialize, Serialize};
+use serde::de::Expected;
+use serde::de::Unexpected;
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::convert;
 use std::convert::TryInto;
+use std::error::Error;
 use std::fmt;
 use std::iter;
 use std::ops;
 use std::ops::Range;
+use thiserror::Error;
+
+type Result<T> = std::result::Result<T, Box<dyn Error>>;
+
+#[derive(Error, Debug, PartialEq)]
+pub enum IrError {
+    #[error("input is empty.")]
+    InputIsEmptyError,
+    #[error("unknown protocol.")]
+    UnknownProtocolError,
+    #[error("insufficient input data. (expected {0})")]
+    InsufficientInputData(&'static str),
+}
 
 /// 家製協プロトコルの定義
 mod protocol_aeha {
@@ -26,6 +42,7 @@ mod protocol_aeha {
         space: Microseconds(4 * TIME_BASE.0),
     };
 
+    #[allow(dead_code)]
     /// 0を意味する信号
     /// H-level width, 1 * T(425us) = typical 425us
     /// L-level width, 1 * T(425us) = typical 425us
@@ -34,6 +51,7 @@ mod protocol_aeha {
         space: TIME_BASE,
     };
 
+    #[allow(dead_code)]
     /// 1を意味する信号
     /// H-level width, 1 * T(425us) = typical 425us
     /// L-level width, 3 * T(425us) = typical 1275us
@@ -57,6 +75,7 @@ mod protocol_nec {
         space: Microseconds(8 * TIME_BASE.0),
     };
 
+    #[allow(dead_code)]
     /// 0を意味する信号
     /// H-level width, 1 * T(562us) = typical 562us
     /// L-level width, 1 * T(562us) = typical 562us
@@ -65,6 +84,7 @@ mod protocol_nec {
         space: TIME_BASE,
     };
 
+    #[allow(dead_code)]
     /// 1を意味する信号
     /// H-level width, 1 * T(562us) = typical 562us
     /// L-level width, 3 * T(562us) = typical 1686us
@@ -88,6 +108,7 @@ mod protocol_sirc {
         space: Microseconds(1 * TIME_BASE.0),
     };
 
+    #[allow(dead_code)]
     /// 0を意味する信号
     /// H-level width, 1 * T(600us) = typical 600us
     /// L-level width, 1 * T(600us) = typical 600us
@@ -96,6 +117,7 @@ mod protocol_sirc {
         space: TIME_BASE,
     };
 
+    #[allow(dead_code)]
     /// 1を意味する信号
     /// H-level width, 2 * T(600us) = typical 1200us
     /// L-level width, 1 * T(600us) = typical 600us
@@ -410,13 +432,12 @@ impl iter::FromIterator<MarkAndSpaceMicros> for InfraredRemoteFrame {
 
 /// デコード1段階目
 /// 入力マークアンドスペース列を各フレームに分ける
-pub fn decode_phase1(input: &[MarkAndSpaceMicros]) -> Result<Vec<InfraredRemoteFrame>, String> {
+pub fn decode_phase1(input: &[MarkAndSpaceMicros]) -> Result<Vec<InfraredRemoteFrame>> {
     if input.len() < 1 {
-        return Err("decode_phase1: input is empty.".to_string());
+        return Err(IrError::InputIsEmptyError.into());
     }
 
-    let threshold = THRESHOLD_FRAME_GAP;
-    let xs = input.split_inclusive(|ms| threshold <= ms.space);
+    let xs = input.split_inclusive(|ms| THRESHOLD_FRAME_GAP <= ms.space);
 
     let mut result = Vec::new();
     for x in xs {
@@ -425,28 +446,35 @@ pub fn decode_phase1(input: &[MarkAndSpaceMicros]) -> Result<Vec<InfraredRemoteF
     Ok(result)
 }
 
-#[test]
-fn test1_decode_phase1() {
-    assert_eq!(
-        decode_phase1(&vec!()),
-        Err("decode_phase1: input is empty.".to_string())
-    )
-}
+#[cfg(test)]
+mod decode_phase1_tests {
+    use crate::infrared_remote::{
+        decode_phase1, InfraredRemoteFrame, IrCarrierCounter, IrError, MarkAndSpaceIrCarrier,
+    };
+    use std::error::Error;
 
-#[test]
-#[should_panic]
-fn test2_decode_phase1() {
-    let a = crate::parsing::parse_infrared_code_text("").unwrap();
-    let _ = decode_phase1(&a);
-}
+    #[test]
+    fn test1_decode_phase1() {
+        let vs = vec![];
+        let x: Box<dyn Error> = decode_phase1(&vs).unwrap_err();
+        let y: Box<dyn Error> = IrError::InputIsEmptyError.into();
+        assert_eq!(x.to_string(), y.to_string());
+    }
 
-#[test]
-fn test3_decode_phase1() {
-    let a =
-        crate::parsing::parse_infrared_code_text("5601AA00 17001500 18001400 18001500").unwrap();
-    assert_eq!(
-        decode_phase1(&a),
-        Ok(vec!(InfraredRemoteFrame(vec!(
+    #[test]
+    #[should_panic]
+    fn test2_decode_phase1() {
+        let _x = decode_phase1(&crate::parsing::parse_infrared_code_text("").unwrap()).unwrap();
+    }
+
+    #[test]
+    fn test3_decode_phase1() {
+        let x: Vec<InfraredRemoteFrame> = decode_phase1(
+            &crate::parsing::parse_infrared_code_text("5601AA00 17001500 18001400 18001500")
+                .unwrap(),
+        )
+        .unwrap();
+        let y: Vec<InfraredRemoteFrame> = vec![InfraredRemoteFrame(vec![
             MarkAndSpaceIrCarrier {
                 mark: IrCarrierCounter(0x0156),
                 space: IrCarrierCounter(0x00AA),
@@ -467,17 +495,18 @@ fn test3_decode_phase1() {
                 space: IrCarrierCounter(0x0015),
             }
             .into(),
-        ))))
-    );
-}
+        ])];
+        assert_eq!(x, y);
+    }
 
-#[test]
-fn test4_decode_phase1() {
-    let a =
-        &crate::parsing::parse_infrared_code_text("5601AA00 17001500 18001400 18001500").unwrap();
-    assert_eq!(
-        decode_phase1(&a),
-        Ok(vec!(InfraredRemoteFrame(vec!(
+    #[test]
+    fn test4_decode_phase1() {
+        let x: Vec<InfraredRemoteFrame> = decode_phase1(
+            &crate::parsing::parse_infrared_code_text("5601AA00 17001500 18001400 18001500")
+                .unwrap(),
+        )
+        .unwrap();
+        let y: Vec<InfraredRemoteFrame> = vec![InfraredRemoteFrame(vec![
             MarkAndSpaceIrCarrier {
                 mark: IrCarrierCounter(0x0156),
                 space: IrCarrierCounter(0x00AA),
@@ -498,18 +527,19 @@ fn test4_decode_phase1() {
                 space: IrCarrierCounter(0x0015),
             }
             .into(),
-        ))))
-    );
-}
+        ])];
+        assert_eq!(x, y);
+    }
 
-#[test]
-fn test5_decode_phase1() {
-    let a =
-        crate::parsing::parse_infrared_code_text("5601AA00 17008001 5601AA00 18001500").unwrap();
-    assert_eq!(
-        decode_phase1(&a),
-        Ok(vec!(
-            InfraredRemoteFrame(vec!(
+    #[test]
+    fn test5_decode_phase1() {
+        let x: Vec<InfraredRemoteFrame> = decode_phase1(
+            &crate::parsing::parse_infrared_code_text("5601AA00 17008001 5601AA00 18001500")
+                .unwrap(),
+        )
+        .unwrap();
+        let y: Vec<InfraredRemoteFrame> = vec![
+            InfraredRemoteFrame(vec![
                 MarkAndSpaceIrCarrier {
                     mark: IrCarrierCounter(0x0156),
                     space: IrCarrierCounter(0x00AA),
@@ -520,8 +550,8 @@ fn test5_decode_phase1() {
                     space: IrCarrierCounter(0x0180),
                 }
                 .into(),
-            )),
-            InfraredRemoteFrame(vec!(
+            ]),
+            InfraredRemoteFrame(vec![
                 MarkAndSpaceIrCarrier {
                     mark: IrCarrierCounter(0x0156),
                     space: IrCarrierCounter(0x00AA),
@@ -531,44 +561,69 @@ fn test5_decode_phase1() {
                     mark: IrCarrierCounter(0x0018),
                     space: IrCarrierCounter(0x0015),
                 }
-                .into()
-            ))
-        ),)
-    );
+                .into(),
+            ]),
+        ];
+        assert_eq!(x, y);
+    }
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 /// 1ビットを表す型
-pub struct Bit(u8);
+pub enum Bit {
+    Lo = 0,
+    Hi = 1,
+}
 
 impl Bit {
-    //
-    pub fn new(init: u8) -> Self {
-        match init {
-            0 => Self(0),
-            1 => Self(1),
-            _ => panic!("0 か 1 でよろしく"),
+    pub fn new(inital: u8) -> Option<Self> {
+        match inital {
+            0 => Some(Bit::Lo),
+            1 => Some(Bit::Hi),
+            _ => None,
         }
     }
 }
 
-// bool型への変換
-impl From<Bit> for bool {
-    fn from(other: Bit) -> bool {
-        match other {
-            Bit(0) => false,
-            Bit(1) => true,
-            _ => panic!("BAD Bit type"),
-        }
-    }
-}
-
-// bool型からの変換
-impl Into<Bit> for bool {
-    fn into(self) -> Bit {
+impl fmt::Display for Bit {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            false => Bit(0),
-            true => Bit(1),
+            Bit::Lo => write!(f, "0"),
+            Bit::Hi => write!(f, "1"),
+        }
+    }
+}
+
+impl Serialize for Bit {
+    fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        serializer.serialize_u8(match self {
+            Bit::Lo => 0,
+            Bit::Hi => 1,
+        })
+    }
+}
+
+impl<'de> Deserialize<'de> for Bit {
+    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let n = u8::deserialize(deserializer)?;
+        Bit::new(n).ok_or(serde::de::Error::invalid_value(
+            Unexpected::Unsigned(n as u64),
+            &"0 or 1",
+        ))
+    }
+}
+
+impl From<bool> for Bit {
+    fn from(item: bool) -> Self {
+        match item {
+            false => Bit::Lo,
+            true => Bit::Hi,
         }
     }
 }
@@ -576,63 +631,125 @@ impl Into<Bit> for bool {
 pub fn from_binary_string(str: &str) -> Option<Vec<Bit>> {
     str.chars()
         .map(|ch| match ch {
-            '0' => Some(Bit::new(0)),
-            '1' => Some(Bit::new(1)),
+            '0' => Some(Bit::Lo),
+            '1' => Some(Bit::Hi),
             _ => None,
         })
         .collect::<Option<Vec<Bit>>>()
 }
-
-#[test]
-fn test1_from_binary_string() {
-    let x = from_binary_string("01000000");
-    assert_eq!(
-        x,
-        Some(vec![
-            Bit::new(0),
-            Bit::new(1),
-            Bit::new(0),
-            Bit::new(0),
-            Bit::new(0),
-            Bit::new(0),
-            Bit::new(0),
-            Bit::new(0),
-        ])
-    );
-}
-
-#[test]
-fn test2_from_binary_string() {
-    let x = from_binary_string("00000100");
-    assert_eq!(
-        x,
-        Some(vec![
-            Bit::new(0),
-            Bit::new(0),
-            Bit::new(0),
-            Bit::new(0),
-            Bit::new(0),
-            Bit::new(1),
-            Bit::new(0),
-            Bit::new(0),
-        ])
-    );
+pub fn bits_to_lsb_first(v: &[Bit]) -> usize {
+    let mut w = v.to_owned();
+    w.reverse();
+    w.iter()
+        .fold(0usize, |acc, x| acc * 2 + if *x == Bit::Lo { 0 } else { 1 })
 }
 
 /// ビット型の配列を8ビットごとに空白を入れて表示する。
 fn show_bit_pattern(input: &[Bit]) -> String {
     let mut s = String::new();
     for (index, item) in input.iter().enumerate() {
-        s.push(match item {
-            Bit(0) => '0',
-            Bit(1) => '1',
-            _ => 'X',
-        });
-        if index & 7 == 7 {
+        if index >= 8 && index & 7 == 0 {
             s.push(' ');
         }
+        s = format!("{}{}", s, item);
     }
     s
+}
+
+#[cfg(test)]
+mod bit_type_tests {
+    use crate::infrared_remote::*;
+
+    #[test]
+    fn test1_from_binary_string() {
+        let x = from_binary_string("01000000");
+        assert_eq!(
+            x,
+            Some(vec![
+                Bit::new(0).unwrap(),
+                Bit::new(1).unwrap(),
+                Bit::new(0).unwrap(),
+                Bit::new(0).unwrap(),
+                Bit::new(0).unwrap(),
+                Bit::new(0).unwrap(),
+                Bit::new(0).unwrap(),
+                Bit::new(0).unwrap(),
+            ])
+        );
+    }
+
+    #[test]
+    fn test2_from_binary_string() {
+        let x = from_binary_string("00000100");
+        assert_eq!(
+            x,
+            Some(vec![
+                false.into(),
+                Bit::from(false),
+                Bit::new(0).unwrap(),
+                Bit::new(0).unwrap(),
+                Bit::new(0).unwrap(),
+                Bit::new(1).unwrap(),
+                Bit::new(0).unwrap(),
+                Bit::new(0).unwrap(),
+            ])
+        );
+    }
+
+    #[test]
+    fn test1_bits_to_lsb_first() {
+        let hi = Bit::Hi;
+        let lo = Bit::Lo;
+        assert_eq!(bits_to_lsb_first(&[hi, lo, hi, lo, hi, lo, lo]), 21);
+    }
+
+    #[test]
+    fn test2_bits_to_lsb_first() {
+        let hi = Bit::Hi;
+        let lo = Bit::Lo;
+        assert_eq!(bits_to_lsb_first(&[hi, lo, lo, lo, lo]), 1);
+    }
+
+    #[test]
+    fn test1_show_bit_pattern() {
+        let xs = from_binary_string("00000100").unwrap();
+        assert_eq!(show_bit_pattern(&xs), "00000100");
+    }
+
+    #[test]
+    fn test2_show_bit_pattern() {
+        let xs = from_binary_string("0100000000000100").unwrap();
+        assert_eq!(show_bit_pattern(&xs), "01000000 00000100");
+    }
+
+    #[test]
+    fn test1_serialize() {
+        assert_eq!(serde_json::to_string(&Bit::Lo).unwrap(), "0");
+    }
+
+    #[test]
+    fn test2_serialize() {
+        assert_eq!(serde_json::to_string(&Bit::Hi).unwrap(), "1");
+    }
+
+    #[test]
+    fn test1_deserialize() {
+        let result: Bit = serde_json::from_str("0").unwrap();
+        assert_eq!(result, Bit::Lo);
+    }
+
+    #[test]
+    fn test2_deserialize() {
+        let result: Bit = serde_json::from_str("1").unwrap();
+        assert_eq!(result, Bit::Hi);
+    }
+
+    #[test]
+    #[should_panic]
+    fn test3_deserialize() {
+        let result: Bit = serde_json::from_str("3").unwrap();
+        assert_eq!(result, Bit::Hi);
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -663,9 +780,9 @@ pub fn decode_phase2(input: &InfraredRemoteFrame) -> InfraredRemoteDemodulatedFr
     fn demodulate_pulse_distance_modulation(x: MarkAndSpaceMicros) -> Bit {
         if x.mark + x.mark <= x.space {
             // マーク時間の２倍以上スペース時間があれば
-            Bit(1)
+            Bit::Hi
         } else {
-            Bit(0)
+            Bit::Lo
         }
     }
     /// pulse width modulation: SIRC
@@ -677,9 +794,9 @@ pub fn decode_phase2(input: &InfraredRemoteFrame) -> InfraredRemoteDemodulatedFr
         let lower = threshold - tolerance;
         if lower <= x.mark && x.mark <= upper {
             // マーク時間が閾値(1200us)付近なら
-            Bit(1)
+            Bit::Hi
         } else {
-            Bit(0)
+            Bit::Lo
         }
     }
     //
@@ -816,12 +933,14 @@ pub fn to_octets(bits: &[Bit]) -> Vec<Vec<Bit>> {
 /// 入力リーダ部とビット配列から赤外線リモコン信号を復号する
 pub fn decode_phase3(
     input: &InfraredRemoteDemodulatedFrame,
-) -> Result<InfraredRemoteDecordedFrame, String> {
+) -> Result<InfraredRemoteDecordedFrame> {
     match input {
         InfraredRemoteDemodulatedFrame::Aeha(bits) => {
             let len = bits.len();
             if len >= 2 {
-                let init = bits.get(0..=len - 2).ok_or("fail to read: data (AEHA)")?;
+                let init = bits
+                    .get(0..=len - 2)
+                    .ok_or(IrError::InsufficientInputData("payload"))?;
                 let last = bits[len - 1];
                 let protocol_aeha = ProtocolAeha {
                     octets: to_octets(init),
@@ -829,26 +948,26 @@ pub fn decode_phase3(
                 };
                 Ok(InfraredRemoteDecordedFrame::Aeha(protocol_aeha))
             } else {
-                Err("data is empty (AEHA)".to_string())
+                Err(IrError::InputIsEmptyError.into())
             }
         }
         InfraredRemoteDemodulatedFrame::Nec(bits) => {
             let protocol_nec = ProtocolNec {
                 custom0: bits[0..8]
                     .try_into()
-                    .map_err(|_| "fail to read: custom code0 (NEC)")?,
+                    .map_err(|_| IrError::InsufficientInputData("custom code0 (NEC)"))?,
                 custom1: bits[8..16]
                     .try_into()
-                    .map_err(|_| "fail to read: custom code1 (NEC)")?,
+                    .map_err(|_| IrError::InsufficientInputData("custom code1 (NEC)"))?,
                 data0: bits[16..24]
                     .try_into()
-                    .map_err(|_| "fail to read: data0 (NEC)")?,
+                    .map_err(|_| IrError::InsufficientInputData("custom data0 (NEC)"))?,
                 data1: bits[24..32]
                     .try_into()
-                    .map_err(|_| "fail to read: data1 (NEC)")?,
+                    .map_err(|_| IrError::InsufficientInputData("custom data1 (NEC)"))?,
                 stop: bits
                     .get(32)
-                    .ok_or("fail to read: stop bit (NEC)")?
+                    .ok_or(IrError::InsufficientInputData("stop bit (NEC)"))?
                     .to_owned(),
             };
             Ok(InfraredRemoteDecordedFrame::Nec(protocol_nec))
@@ -859,10 +978,10 @@ pub fn decode_phase3(
                 let protocol_sirc = ProtocolSirc12 {
                     command: bits[0..7]
                         .try_into()
-                        .map_err(|_| "fail to read: command code (SIRC12)")?,
+                        .map_err(|_| IrError::InsufficientInputData("command code (SIRC12)"))?,
                     address: bits[7..12]
                         .try_into()
-                        .map_err(|_| "fail to read: address (SIRC12)")?,
+                        .map_err(|_| IrError::InsufficientInputData("address (SIRC12)"))?,
                 };
                 Ok(InfraredRemoteDecordedFrame::Sirc12(protocol_sirc))
             }
@@ -874,7 +993,7 @@ pub fn decode_phase3(
                         .map_err(|_| "fail to read: command code (SIRC15)")?,
                     address: bits[7..15]
                         .try_into()
-                        .map_err(|_| "fail to read: address (SIRC15)")?,
+                        .map_err(|_| IrError::InsufficientInputData("address (SIRC15)"))?,
                 };
                 Ok(InfraredRemoteDecordedFrame::Sirc15(protocol_sirc))
             }
@@ -883,17 +1002,17 @@ pub fn decode_phase3(
                 let protocol_sirc = ProtocolSirc20 {
                     command: bits[0..7]
                         .try_into()
-                        .map_err(|_| "fail to read: command code (SIRC20)")?,
+                        .map_err(|_| IrError::InsufficientInputData("command code (SIRC20)"))?,
                     address: bits[7..12]
                         .try_into()
-                        .map_err(|_| "fail to read: address (SIRC20)")?,
+                        .map_err(|_| IrError::InsufficientInputData("address (SIRC20)"))?,
                     extended: bits[12..20]
                         .try_into()
-                        .map_err(|_| "fail to read: address (SIRC20)")?,
+                        .map_err(|_| IrError::InsufficientInputData("extended (SIRC20)"))?,
                 };
                 Ok(InfraredRemoteDecordedFrame::Sirc20(protocol_sirc))
             }
-            _ => Err("".to_string()),
+            _ => Err(IrError::UnknownProtocolError.into()),
         },
         InfraredRemoteDemodulatedFrame::Unknown(bits) => {
             Ok(InfraredRemoteDecordedFrame::Unknown(bits.to_owned()))
@@ -963,31 +1082,26 @@ pub fn decode_phase4(
 
 /// エンコード1段階目
 /// 赤外線リモコン信号から変調済みフレームを組み立てる
-pub fn encode_phase1(
-    input: &InfraredRemoteDemodulatedFrame,
-) -> Result<InfraredRemoteFrame, String> {
+pub fn encode_phase1(input: &InfraredRemoteDemodulatedFrame) -> Result<InfraredRemoteFrame> {
     /// 家製協プロトコルに従ってビット列を変調する
-    fn modulate_aeha(x: &Bit) -> Result<MarkAndSpaceMicros, String> {
+    fn modulate_aeha(x: &Bit) -> Result<MarkAndSpaceMicros> {
         match x {
-            Bit(0) => Ok(protocol_aeha::TYPICAL_BIT_ZERO),
-            Bit(1) => Ok(protocol_aeha::TYPICAL_BIT_ONE),
-            _ => Err(format!("encode_phase1: 異常値 {:?} です。", x)),
+            Bit::Lo => Ok(protocol_aeha::TYPICAL_BIT_ZERO),
+            Bit::Hi => Ok(protocol_aeha::TYPICAL_BIT_ONE),
         }
     }
     /// NECプロトコルに従ってビット列を変調する
-    fn modulate_nec(x: &Bit) -> Result<MarkAndSpaceMicros, String> {
+    fn modulate_nec(x: &Bit) -> Result<MarkAndSpaceMicros> {
         match x {
-            Bit(0) => Ok(protocol_nec::TYPICAL_BIT_ZERO),
-            Bit(1) => Ok(protocol_nec::TYPICAL_BIT_ONE),
-            _ => Err(format!("encode_phase1: 異常値 {:?} です。", x)),
+            Bit::Lo => Ok(protocol_nec::TYPICAL_BIT_ZERO),
+            Bit::Hi => Ok(protocol_nec::TYPICAL_BIT_ONE),
         }
     }
     /// SIRCプロトコルに従ってビット列を変調する
-    fn modulate_sirc(x: &Bit) -> Result<MarkAndSpaceMicros, String> {
+    fn modulate_sirc(x: &Bit) -> Result<MarkAndSpaceMicros> {
         match x {
-            Bit(0) => Ok(protocol_sirc::TYPICAL_BIT_ZERO),
-            Bit(1) => Ok(protocol_sirc::TYPICAL_BIT_ONE),
-            _ => Err(format!("encode_phase1: 異常値 {:?} です。", x)),
+            Bit::Lo => Ok(protocol_sirc::TYPICAL_BIT_ZERO),
+            Bit::Hi => Ok(protocol_sirc::TYPICAL_BIT_ONE),
         }
     }
     match input {
@@ -996,7 +1110,7 @@ pub fn encode_phase1(
             let trailer = bitstream
                 .iter()
                 .map(|bit| modulate_aeha(bit))
-                .collect::<Result<Vec<MarkAndSpaceMicros>, _>>()?;
+                .collect::<Result<Vec<MarkAndSpaceMicros>>>()?;
             // リーダーパルスを復元する
             Ok(InfraredRemoteFrame([vec![leader], trailer].concat()))
         }
@@ -1005,7 +1119,7 @@ pub fn encode_phase1(
             let trailer = bitstream
                 .iter()
                 .map(|bit| modulate_nec(bit))
-                .collect::<Result<Vec<MarkAndSpaceMicros>, _>>()?;
+                .collect::<Result<Vec<MarkAndSpaceMicros>>>()?;
             // リーダーパルスを復元する
             Ok(InfraredRemoteFrame([vec![leader], trailer].concat()))
         }
@@ -1014,13 +1128,11 @@ pub fn encode_phase1(
             let trailer = bitstream
                 .iter()
                 .map(|bit| modulate_sirc(bit))
-                .collect::<Result<Vec<MarkAndSpaceMicros>, _>>()?;
+                .collect::<Result<Vec<MarkAndSpaceMicros>>>()?;
             // リーダーパルスを復元する
             Ok(InfraredRemoteFrame([vec![leader], trailer].concat()))
         }
-        InfraredRemoteDemodulatedFrame::Unknown(_) => {
-            Err("encode_phase1: 不明プロトコルでは変調できません。".to_string())
-        }
+        InfraredRemoteDemodulatedFrame::Unknown(_) => Err(IrError::UnknownProtocolError.into()),
     }
 }
 
@@ -1047,11 +1159,11 @@ pub fn encode_phase2(input: &[InfraredRemoteFrame]) -> Vec<MarkAndSpaceMicros> {
 /// 赤外線リモコン信号からマークアンドスペースにする
 pub fn encode_to_mark_and_spaces(
     input: &[InfraredRemoteDemodulatedFrame],
-) -> Result<Vec<MarkAndSpaceMicros>, String> {
+) -> Result<Vec<MarkAndSpaceMicros>> {
     let frames = input
         .iter()
         .map(|x| encode_phase1(x))
-        .collect::<Result<Vec<InfraredRemoteFrame>, String>>()?;
+        .collect::<Result<Vec<InfraredRemoteFrame>>>()?;
     Ok(encode_phase2(&frames))
 }
 
@@ -1065,19 +1177,19 @@ pub fn encode_phase3(input: &[MarkAndSpaceMicros]) -> String {
 }
 
 /// 送信する赤外線リモコン信号を得る
-pub fn encode_infrared_remote_code(
-    input: &[InfraredRemoteDemodulatedFrame],
-) -> Result<String, String> {
+pub fn encode_infrared_remote_code(input: &[InfraredRemoteDemodulatedFrame]) -> Result<String> {
     encode_to_mark_and_spaces(input).map(|v| encode_phase3(&v))
 }
 
 #[cfg(test)]
-mod decode_tests {
+mod decode_phase1_and_2_tests {
     use crate::infrared_remote::{
         decode_phase1, decode_phase2, encode_infrared_remote_code, InfraredRemoteDemodulatedFrame,
-        MarkAndSpaceMicros,
     };
-    fn decode(input: &str) -> Result<Vec<InfraredRemoteDemodulatedFrame>, String> {
+    use std::error::Error;
+    fn decode(
+        input: &str,
+    ) -> std::result::Result<Vec<InfraredRemoteDemodulatedFrame>, Box<dyn Error>> {
         let markandspaces = crate::parsing::parse_infrared_code_text(input)?;
         let frames = decode_phase1(&markandspaces)?;
         Ok(frames

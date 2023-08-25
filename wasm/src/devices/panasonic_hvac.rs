@@ -216,14 +216,6 @@ fn decode_sub(frame: &ProtocolAeha) -> Option<PanasonicHvac> {
     }
 }
 
-fn bits_to_lsb_first(v: &[Bit]) -> usize {
-    let lo = false.into();
-    let mut w = v.to_owned();
-    w.reverse();
-    w.iter()
-        .fold(0usize, |acc, x| acc * 2 + if *x == lo { 0 } else { 1 })
-}
-
 //
 // Panasonic HVAC first frame value is
 // LSB first                                    -- MSB first
@@ -275,7 +267,7 @@ fn constraint_first_frame() -> InfraredRemoteDecordedFrame {
             from_binary_string("00000000").unwrap(), // 00 (LSB first) | 00 (MSB first)
             from_binary_string("01100000").unwrap(), // 06 (LSB first) | 60 (MSB first)
         ],
-        stop: Bit::new(1),
+        stop: Bit::new(1).unwrap(),
     })
 }
 
