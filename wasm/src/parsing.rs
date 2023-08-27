@@ -4,15 +4,18 @@
 //
 use crate::infrared_remote::{IrCarrierCounter, MarkAndSpaceMicros, Microseconds};
 use nom::{
-    branch::alt,
-    bytes::complete::{escaped, take_while_m_n},
-    character::complete::{alphanumeric1 as alphanumeric, char, digit1, multispace0, one_of},
-    combinator::{map_res, opt},
+    branch::{alt, permutation},
+    bytes::complete::{escaped_transform, take_while1, take_while_m_n},
+    character::complete::{
+        alphanumeric1 as alphanumeric, anychar, char, digit1, multispace0, none_of, one_of,
+    },
+    combinator::{map, map_res, opt, value},
     error::{convert_error, ParseError, VerboseError},
     multi::many1,
     sequence::{delimited, tuple},
     Finish, IResult,
 };
+use std::char::{decode_utf16, REPLACEMENT_CHARACTER};
 use std::error::Error;
 
 // 入力文字列を16進数として解釈する。
@@ -21,9 +24,9 @@ fn from_hexadecimal_str(s: &str) -> Result<u8, std::num::ParseIntError> {
 }
 
 // 4桁の16進数(16ビット)
-fn four_digits_hexadecimal_lsb_first(
-    s: &str,
-) -> IResult<&str, IrCarrierCounter, nom::error::VerboseError<&str>> {
+fn four_digits_hexadecimal_lsb_first<'a>(
+    s: &'a str,
+) -> IResult<&'a str, IrCarrierCounter, nom::error::VerboseError<&'a str>> {
     // 2桁の16進数(8ビット)
     fn two_digits_hexadecimal(input: &str) -> IResult<&str, u8, VerboseError<&str>> {
         let hexadecimal_8bits_str = take_while_m_n(2, 2, |c: char| c.is_digit(16));
@@ -36,7 +39,9 @@ fn four_digits_hexadecimal_lsb_first(
 }
 
 //
-fn onoff_pair_mark_and_space(s: &str) -> IResult<&str, MarkAndSpaceMicros, VerboseError<&str>> {
+fn onoff_pair_mark_and_space<'a>(
+    s: &'a str,
+) -> IResult<&'a str, MarkAndSpaceMicros, VerboseError<&'a str>> {
     tuple((
         four_digits_hexadecimal_lsb_first,
         four_digits_hexadecimal_lsb_first,
@@ -53,7 +58,9 @@ fn onoff_pair_mark_and_space(s: &str) -> IResult<&str, MarkAndSpaceMicros, Verbo
 }
 
 // ONOFFペアの16進数形式の文字列を解析する
-fn parse_onoff_pair_format(s: &str) -> IResult<&str, Vec<MarkAndSpaceMicros>, VerboseError<&str>> {
+fn parse_onoff_pair_format<'a>(
+    s: &'a str,
+) -> IResult<&'a str, Vec<MarkAndSpaceMicros>, VerboseError<&'a str>> {
     many1(delimited(
         multispace0,
         onoff_pair_mark_and_space,
@@ -62,7 +69,9 @@ fn parse_onoff_pair_format(s: &str) -> IResult<&str, Vec<MarkAndSpaceMicros>, Ve
 }
 
 //
-fn json_array_mark_and_space(s: &str) -> IResult<&str, MarkAndSpaceMicros, VerboseError<&str>> {
+fn json_array_mark_and_space<'a>(
+    s: &'a str,
+) -> IResult<&'a str, MarkAndSpaceMicros, VerboseError<&'a str>> {
     fn leading(s: &str) -> IResult<&str, u32, VerboseError<&str>> {
         delimited(multispace0, map_res(digit1, str::parse::<u32>), multispace0)(s)
     }
@@ -88,7 +97,9 @@ fn json_array_mark_and_space(s: &str) -> IResult<&str, MarkAndSpaceMicros, Verbo
 }
 
 // マイクロ秒ONOFFペアのJSON配列形式の文字列を解析する
-fn parse_json_array_format(s: &str) -> IResult<&str, Vec<MarkAndSpaceMicros>, VerboseError<&str>> {
+fn parse_json_array_format<'a>(
+    s: &'a str,
+) -> IResult<&'a str, Vec<MarkAndSpaceMicros>, VerboseError<&'a str>> {
     let (s, _) = multispace0(s)?;
     delimited(
         char('['),
@@ -101,20 +112,51 @@ fn parse_json_array_format(s: &str) -> IResult<&str, Vec<MarkAndSpaceMicros>, Ve
     )(s)
 }
 
-fn parse_str<'a, E: ParseError<&'a str>>(i: &'a str) -> IResult<&'a str, &'a str, E> {
-    escaped(alphanumeric, '\\', one_of("\"n\\"))(i)
+fn string_literal<'a>(s: &'a str) -> IResult<&'a str, String, VerboseError<&'a str>> {
+    delimited(
+        char('\"'),
+        escaped_transform(
+            none_of("\"\\"),
+            '\\',
+            alt((
+                value('\\', char('\\')),
+                value('\"', char('\"')),
+                value('\'', char('\'')),
+                value('\r', char('r')),
+                value('\n', char('n')),
+                value('\t', char('t')),
+                map(
+                    permutation((
+                        char('u'),
+                        take_while_m_n(4, 4, |c: char| c.is_ascii_hexdigit()),
+                    )),
+                    |(_, code): (char, &str)| -> char {
+                        decode_utf16(vec![u16::from_str_radix(code, 16).unwrap()])
+                            .nth(0)
+                            .unwrap()
+                            .unwrap_or(REPLACEMENT_CHARACTER)
+                    },
+                ),
+            )),
+        ),
+        char('\"'),
+    )(s)
 }
 
 // pigpioのirrp形式の文字列を解析する
-fn parse_pigpio_irrp_format(s: &str) -> IResult<&str, Vec<MarkAndSpaceMicros>, VerboseError<&str>> {
-    fn json_object(s: &str) -> IResult<&str, (&str, Vec<MarkAndSpaceMicros>), VerboseError<&str>> {
+fn parse_pigpio_irrp_format<'a>(
+    s: &'a str,
+) -> IResult<&'a str, Vec<MarkAndSpaceMicros>, VerboseError<&'a str>> {
+    fn json_object<'a>(
+        s: &'a str,
+    ) -> IResult<&'a str, Vec<MarkAndSpaceMicros>, VerboseError<&'a str>> {
         let (s, _) = multispace0(s)?;
-        let (s, name) = delimited(char('"'), parse_str, char('"'))(s)?;
+        let (s, _name) = string_literal(s)?;
         let (s, _) = multispace0(s)?;
         let (s, _) = char(':')(s)?;
         let (s, _) = multispace0(s)?;
         let (s, vs) = parse_json_array_format(s)?;
-        Ok((s, (name, vs)))
+        Ok((s, vs))
     }
     let (s, _) = multispace0(s)?;
     delimited(
@@ -122,11 +164,12 @@ fn parse_pigpio_irrp_format(s: &str) -> IResult<&str, Vec<MarkAndSpaceMicros>, V
         delimited(multispace0, json_object, multispace0),
         char('}'),
     )(s)
-    .map(|(_, vs)| vs)
 }
 
 // 入力文字列のパーサー
-pub fn parse_infrared_code_text(input: &str) -> Result<Vec<MarkAndSpaceMicros>, Box<dyn Error>> {
+pub fn parse_infrared_code_text<'a>(
+    input: &'a str,
+) -> Result<Vec<MarkAndSpaceMicros>, Box<dyn Error>> {
     alt((
         parse_onoff_pair_format,
         parse_json_array_format,
@@ -236,6 +279,17 @@ mod parsing_tests {
     #[test]
     fn test9_parse_infrared_code_text() {
         let x = parse_infrared_code_text(r#" { "name" : [ 417  , 448 , 418 , 450,  ] } "#).unwrap();
+        let y = vec![
+            MarkAndSpaceMicros::from((Microseconds(417), Microseconds(448))),
+            MarkAndSpaceMicros::from((Microseconds(418), Microseconds(450))),
+        ];
+        assert_eq!(x, y);
+    }
+
+    #[test]
+    fn test10_parse_infrared_code_text() {
+        let x = parse_infrared_code_text(r#" { "name:name" : [ 417  , 448 , 418 , 450,  ] } "#)
+            .unwrap();
         let y = vec![
             MarkAndSpaceMicros::from((Microseconds(417), Microseconds(448))),
             MarkAndSpaceMicros::from((Microseconds(418), Microseconds(450))),
