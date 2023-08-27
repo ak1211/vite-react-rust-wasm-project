@@ -2,52 +2,22 @@
 // Licensed under the MIT License <https://spdx.org/licenses/MIT.html>
 // See LICENSE file in the project root for full license information.
 //
-import { wasm_decode_phase1, wasm_decode_phase2, wasm_decode_phase3, wasm_decode_phase4 } from '../wasm/pkg/wasm'
-import { useState, useEffect } from 'react'
-import { InfraredRemoteFrame, InfraredRemoteControlCode } from './types'
+import { InfraredRemoteControlCode } from './types'
 import { Space, Empty, Descriptions, Card, Statistic, Typography } from 'antd'
 import 'antd/dist/antd.min.css'
 
 const { Title } = Typography
 
 type Props = {
-  ir_frame: InfraredRemoteFrame,
+  ir_control_codes: InfraredRemoteControlCode[],
 }
-
-type State = {
-  ir_codes: InfraredRemoteControlCode[],
-};
-
-const initState: State = {
-  ir_codes: [],
-};
 
 //
 const IrControlCode = (props: Props): JSX.Element => {
-  const [state, setState] = useState<State>(initState)
-
-  useEffect(
-    () => {
-      if (props.ir_frame.length) {
-        try {
-          const decorded_frames = wasm_decode_phase1(props.ir_frame)
-            .map((x) => wasm_decode_phase2(x))
-            .map((x) => wasm_decode_phase3(x));
-          const ir_codes = wasm_decode_phase4(decorded_frames);
-          setState(state => ({ ...state, ir_codes: ir_codes, }));
-        } catch (error) {
-          setState(state => ({ ...state, ir_codes: [] }))
-        }
-      } else {
-        setState(state => ({ ...state, ir_codes: [] }))
-      }
-    }
-    , [props.ir_frame])
-
   const empty = <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} />;
   return (
     <Card size='small' title={<Title level={4}>赤外線リモコンコード</Title>}>
-      {state.ir_codes.length == 0 ? empty : state.ir_codes.map((v, idx) => display_remocon_code(idx, v))}
+      {props.ir_control_codes.length == 0 ? empty : props.ir_control_codes.map((v, idx) => display_remocon_code(idx, v))}
     </Card>
   )
 }

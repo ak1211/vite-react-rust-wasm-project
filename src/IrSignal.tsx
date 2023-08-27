@@ -2,7 +2,7 @@
 // Licensed under the MIT License <https://spdx.org/licenses/MIT.html>
 // See LICENSE file in the project root for full license information.
 //
-import { MarkAndSpaceMicros, InfraredRemoteFrame } from './types';
+import { MarkAndSpaceMicros } from './types';
 import { Line, Datum } from '@ant-design/charts';
 import { Card, Divider, Typography, Table } from 'antd';
 import 'antd/dist/antd.min.css';
@@ -11,16 +11,14 @@ import './App.css';
 const { Title } = Typography;
 
 type Props = {
-  ir_frame: InfraredRemoteFrame,
+  ir_mark_and_spaces: MarkAndSpaceMicros[],
 }
 
 //
 const IrSignal = (props: Props): JSX.Element => {
-  const mark_and_spaces: MarkAndSpaceMicros[] = props.ir_frame;
-
   //
   const config = {
-    data: conv_ir_control_signal(mark_and_spaces),
+    data: conv_ir_control_signal(props.ir_mark_and_spaces),
     height: 200,
     xField: 'time',
     yField: 'bit',
@@ -82,7 +80,7 @@ const IrSignal = (props: Props): JSX.Element => {
       <Line {...config} />
       <Divider>マークアンドスペース</Divider>
       <Table
-        dataSource={convert_for_list(mark_and_spaces)}
+        dataSource={convert_for_list(props.ir_mark_and_spaces)}
         columns={columns}
         scroll={{ y: 240 }}
       />

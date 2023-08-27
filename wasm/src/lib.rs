@@ -11,7 +11,9 @@ use infrared_remote::{
     InfraredRemoteDecordedFrame, InfraredRemoteDemodulatedFrame, InfraredRemoteFrame,
     MarkAndSpaceMicros,
 };
+use nonempty::NonEmpty;
 use parsing::parse_infrared_code_text;
+use serde_wasm_bindgen::Error;
 use wasm_bindgen::prelude::*;
 
 #[wasm_bindgen]
@@ -26,13 +28,15 @@ pub fn greet() {
 
 #[wasm_bindgen(typescript_custom_section)]
 const TS_APPEND_CONTENT: &'static str = r#"
-export function wasm_parse_infrared_code(ircode: string): MarkAndSpaceMicros;
+export function wasm_parse_infrared_code(ircode: string): MarkAndSpaceMicros[];
 "#;
 #[wasm_bindgen(skip_typescript)]
-pub fn wasm_parse_infrared_code(ircode: &str) -> Result<JsValue, String> {
-    let mark_and_spaces: Vec<MarkAndSpaceMicros> =
-        parse_infrared_code_text(ircode).map_err(|e| e.to_string())?;
-    serde_wasm_bindgen::to_value(&mark_and_spaces).map_err(|e| e.to_string())
+pub fn wasm_parse_infrared_code(input: &str) -> Result<JsValue, Error> {
+    parse_infrared_code_text(input)
+        .map_err(|e| Error::new(e.to_string()))
+        .and_then(|mark_and_spaces: Vec<MarkAndSpaceMicros>| {
+            serde_wasm_bindgen::to_value(&mark_and_spaces)
+        })
 }
 
 #[wasm_bindgen(typescript_custom_section)]
@@ -40,12 +44,12 @@ const TS_APPEND_CONTENT: &'static str = r#"
 export function wasm_decode_phase1(input: MarkAndSpaceMicros[]): InfraredRemoteFrame[];
 "#;
 #[wasm_bindgen(skip_typescript)]
-pub fn wasm_decode_phase1(input: JsValue) -> Result<JsValue, String> {
-    let mark_and_spaces: Vec<MarkAndSpaceMicros> =
-        serde_wasm_bindgen::from_value(input).map_err(|e| e.to_string())?;
-    let ir_frames: Vec<InfraredRemoteFrame> =
-        decode_phase1(&mark_and_spaces).map_err(|e| e.to_string())?;
-    serde_wasm_bindgen::to_value(&ir_frames).map_err(|e| e.to_string())
+pub fn wasm_decode_phase1(input: JsValue) -> Result<JsValue, Error> {
+    serde_wasm_bindgen::from_value(input)
+        .and_then(|mark_and_spaces: Vec<MarkAndSpaceMicros>| {
+            decode_phase1(&mark_and_spaces).map_err(|e| Error::new(e.to_string()))
+        })
+        .and_then(|ir_frames: Vec<InfraredRemoteFrame>| serde_wasm_bindgen::to_value(&ir_frames))
 }
 
 #[wasm_bindgen(typescript_custom_section)]
@@ -53,11 +57,12 @@ const TS_APPEND_CONTENT: &'static str = r#"
 export function wasm_decode_phase2(input: InfraredRemoteFrame): InfraredRemoteDemodulatedFrame;
 "#;
 #[wasm_bindgen(skip_typescript)]
-pub fn wasm_decode_phase2(input: JsValue) -> Result<JsValue, String> {
-    let ir_frame: InfraredRemoteFrame =
-        serde_wasm_bindgen::from_value(input).map_err(|e| e.to_string())?;
-    let demodulated_frame: InfraredRemoteDemodulatedFrame = decode_phase2(&ir_frame);
-    serde_wasm_bindgen::to_value(&demodulated_frame).map_err(|e| e.to_string())
+pub fn wasm_decode_phase2(input: JsValue) -> Result<JsValue, Error> {
+    serde_wasm_bindgen::from_value(input)
+        .and_then(|ir_frame: InfraredRemoteFrame| Ok(decode_phase2(&ir_frame)))
+        .and_then(|demodulated_frame: InfraredRemoteDemodulatedFrame| {
+            serde_wasm_bindgen::to_value(&demodulated_frame)
+        })
 }
 
 #[wasm_bindgen(typescript_custom_section)]
@@ -65,12 +70,12 @@ const TS_APPEND_CONTENT: &'static str = r#"
 export function wasm_decode_phase3(input: InfraredRemoteDemodulatedFrame): InfraredRemoteDecordedFrame;
 "#;
 #[wasm_bindgen(skip_typescript)]
-pub fn wasm_decode_phase3(input: JsValue) -> Result<JsValue, String> {
-    let demodulated_frame: InfraredRemoteDemodulatedFrame =
-        serde_wasm_bindgen::from_value(input).map_err(|e| e.to_string())?;
-    let protocol: InfraredRemoteDecordedFrame =
-        decode_phase3(&demodulated_frame).map_err(|e| e.to_string())?;
-    serde_wasm_bindgen::to_value(&protocol).map_err(|e| e.to_string())
+pub fn wasm_decode_phase3(input: JsValue) -> Result<JsValue, Error> {
+    serde_wasm_bindgen::from_value(input)
+        .and_then(|demodulated_frame: InfraredRemoteDemodulatedFrame| {
+            decode_phase3(&demodulated_frame).map_err(|e| Error::new(e.to_string()))
+        })
+        .and_then(|v: InfraredRemoteDecordedFrame| serde_wasm_bindgen::to_value(&v))
 }
 
 #[wasm_bindgen(typescript_custom_section)]
@@ -78,9 +83,10 @@ const TS_APPEND_CONTENT: &'static str = r#"
 export function wasm_decode_phase4(input: InfraredRemoteDecordedFrame[]): InfraredRemoteControlCode[];
 "#;
 #[wasm_bindgen(skip_typescript)]
-pub fn wasm_decode_phase4(input: JsValue) -> Result<JsValue, String> {
-    let protocols: Vec<InfraredRemoteDecordedFrame> =
-        serde_wasm_bindgen::from_value(input).map_err(|e| e.to_string())?;
-    let ir_codes: Vec<InfraredRemoteControlCode> = decode_phase4(&protocols).into();
-    serde_wasm_bindgen::to_value(&ir_codes).map_err(|e| e.to_string())
+pub fn wasm_decode_phase4(input: JsValue) -> Result<JsValue, Error> {
+    serde_wasm_bindgen::from_value(input)
+        .and_then(|vs: Vec<InfraredRemoteDecordedFrame>| Ok(decode_phase4(&vs)))
+        .and_then(|v: NonEmpty<InfraredRemoteControlCode>| {
+            serde_wasm_bindgen::to_value(&Vec::from(v))
+        })
 }

@@ -4,7 +4,6 @@
 //
 use crate::devices;
 use nonempty::NonEmpty;
-use serde::de::Expected;
 use serde::de::Unexpected;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::convert;
@@ -42,7 +41,6 @@ mod protocol_aeha {
         space: Microseconds(4 * TIME_BASE.0),
     };
 
-    #[allow(dead_code)]
     /// 0を意味する信号
     /// H-level width, 1 * T(425us) = typical 425us
     /// L-level width, 1 * T(425us) = typical 425us
@@ -51,7 +49,6 @@ mod protocol_aeha {
         space: TIME_BASE,
     };
 
-    #[allow(dead_code)]
     /// 1を意味する信号
     /// H-level width, 1 * T(425us) = typical 425us
     /// L-level width, 3 * T(425us) = typical 1275us
@@ -75,7 +72,6 @@ mod protocol_nec {
         space: Microseconds(8 * TIME_BASE.0),
     };
 
-    #[allow(dead_code)]
     /// 0を意味する信号
     /// H-level width, 1 * T(562us) = typical 562us
     /// L-level width, 1 * T(562us) = typical 562us
@@ -84,7 +80,6 @@ mod protocol_nec {
         space: TIME_BASE,
     };
 
-    #[allow(dead_code)]
     /// 1を意味する信号
     /// H-level width, 1 * T(562us) = typical 562us
     /// L-level width, 3 * T(562us) = typical 1686us
@@ -108,7 +103,6 @@ mod protocol_sirc {
         space: Microseconds(1 * TIME_BASE.0),
     };
 
-    #[allow(dead_code)]
     /// 0を意味する信号
     /// H-level width, 1 * T(600us) = typical 600us
     /// L-level width, 1 * T(600us) = typical 600us
@@ -117,7 +111,6 @@ mod protocol_sirc {
         space: TIME_BASE,
     };
 
-    #[allow(dead_code)]
     /// 1を意味する信号
     /// H-level width, 2 * T(600us) = typical 1200us
     /// L-level width, 1 * T(600us) = typical 600us
