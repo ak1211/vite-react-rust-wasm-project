@@ -933,7 +933,7 @@ pub fn decode_phase3(
             if len >= 2 {
                 let init = bits
                     .get(0..=len - 2)
-                    .ok_or(IrError::InsufficientInputData("payload"))?;
+                    .ok_or(IrError::InsufficientInputData("more data (protocol AEHA)"))?;
                 let last = bits[len - 1];
                 let protocol_aeha = ProtocolAeha {
                     octets: to_octets(init),
@@ -941,26 +941,26 @@ pub fn decode_phase3(
                 };
                 Ok(InfraredRemoteDecordedFrame::Aeha(protocol_aeha))
             } else {
-                Err(IrError::InputIsEmptyError.into())
+                Err(IrError::InsufficientInputData("more data (protocol AEHA)").into())
             }
         }
         InfraredRemoteDemodulatedFrame::Nec(bits) => {
             let protocol_nec = ProtocolNec {
-                custom0: bits[0..8]
-                    .try_into()
-                    .map_err(|_| IrError::InsufficientInputData("custom code0 (NEC)"))?,
-                custom1: bits[8..16]
-                    .try_into()
-                    .map_err(|_| IrError::InsufficientInputData("custom code1 (NEC)"))?,
-                data0: bits[16..24]
-                    .try_into()
-                    .map_err(|_| IrError::InsufficientInputData("custom data0 (NEC)"))?,
-                data1: bits[24..32]
-                    .try_into()
-                    .map_err(|_| IrError::InsufficientInputData("custom data1 (NEC)"))?,
+                custom0: bits[0..8].try_into().map_err(|_| {
+                    IrError::InsufficientInputData("custom code0 8bits (protocol NEC)")
+                })?,
+                custom1: bits[8..16].try_into().map_err(|_| {
+                    IrError::InsufficientInputData("custom code1 8bits (protocol NEC)")
+                })?,
+                data0: bits[16..24].try_into().map_err(|_| {
+                    IrError::InsufficientInputData("custom data0 8bits (protocol NEC)")
+                })?,
+                data1: bits[24..32].try_into().map_err(|_| {
+                    IrError::InsufficientInputData("custom data1 8bits (protocol NEC)")
+                })?,
                 stop: bits
                     .get(32)
-                    .ok_or(IrError::InsufficientInputData("stop bit (NEC)"))?
+                    .ok_or(IrError::InsufficientInputData("stop bit (protocol NEC)"))?
                     .to_owned(),
             };
             Ok(InfraredRemoteDecordedFrame::Nec(protocol_nec))
@@ -969,39 +969,39 @@ pub fn decode_phase3(
             length if length == 12 => {
                 // SIRC12
                 let protocol_sirc = ProtocolSirc12 {
-                    command: bits[0..7]
-                        .try_into()
-                        .map_err(|_| IrError::InsufficientInputData("command code (SIRC12)"))?,
-                    address: bits[7..12]
-                        .try_into()
-                        .map_err(|_| IrError::InsufficientInputData("address (SIRC12)"))?,
+                    command: bits[0..7].try_into().map_err(|_| {
+                        IrError::InsufficientInputData("command code 7bits (protocol SIRC12)")
+                    })?,
+                    address: bits[7..12].try_into().map_err(|_| {
+                        IrError::InsufficientInputData("address 5bits (protocol SIRC12)")
+                    })?,
                 };
                 Ok(InfraredRemoteDecordedFrame::Sirc12(protocol_sirc))
             }
             length if length == 15 => {
                 // SIRC15
                 let protocol_sirc = ProtocolSirc15 {
-                    command: bits[0..7]
-                        .try_into()
-                        .map_err(|_| "fail to read: command code (SIRC15)")?,
-                    address: bits[7..15]
-                        .try_into()
-                        .map_err(|_| IrError::InsufficientInputData("address (SIRC15)"))?,
+                    command: bits[0..7].try_into().map_err(|_| {
+                        IrError::InsufficientInputData("command code 7bits (protocol SIRC15)")
+                    })?,
+                    address: bits[7..15].try_into().map_err(|_| {
+                        IrError::InsufficientInputData("address 8bits (protocol SIRC15)")
+                    })?,
                 };
                 Ok(InfraredRemoteDecordedFrame::Sirc15(protocol_sirc))
             }
             length if length == 20 => {
                 // SIRC20
                 let protocol_sirc = ProtocolSirc20 {
-                    command: bits[0..7]
-                        .try_into()
-                        .map_err(|_| IrError::InsufficientInputData("command code (SIRC20)"))?,
-                    address: bits[7..12]
-                        .try_into()
-                        .map_err(|_| IrError::InsufficientInputData("address (SIRC20)"))?,
-                    extended: bits[12..20]
-                        .try_into()
-                        .map_err(|_| IrError::InsufficientInputData("extended (SIRC20)"))?,
+                    command: bits[0..7].try_into().map_err(|_| {
+                        IrError::InsufficientInputData("command code 7bits (protocol SIRC20)")
+                    })?,
+                    address: bits[7..12].try_into().map_err(|_| {
+                        IrError::InsufficientInputData("address 5bits (protocol SIRC20)")
+                    })?,
+                    extended: bits[12..20].try_into().map_err(|_| {
+                        IrError::InsufficientInputData("extended 8bits (protocol SIRC20)")
+                    })?,
                 };
                 Ok(InfraredRemoteDecordedFrame::Sirc20(protocol_sirc))
             }

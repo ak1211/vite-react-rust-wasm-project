@@ -51,7 +51,7 @@ const App = (): JSX.Element => {
   useEffect(
     () => {
       if (state.input_text.length == 0) {
-        setState(initState);
+        setState(state => ({ ...state, ir_mark_and_spaces: [] }))
         return;
       }
       try {
@@ -60,7 +60,7 @@ const App = (): JSX.Element => {
       } catch (error) {
         if (error instanceof Error) {
           let msg = error.message;
-          setState(state => ({ ...state, alert: { type: 'error', message: msg } }))
+          setState(state => ({ ...state, ir_mark_and_spaces: [], alert: { type: 'error', message: msg } }))
         } else {
           throw error
         }
