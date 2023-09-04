@@ -7,7 +7,7 @@ import {
   wasm_parse_infrared_code, wasm_decord_receiving_data, wasm_decord_ir_frames,
 } from '../wasm/pkg/wasm'
 import { useEffect, useState } from 'react';
-import { Button, Input, Alert, Card, Radio, Space, Typography } from 'antd'
+import { Button, Input, Alert, Card, Radio, Space, Typography, Switch } from 'antd'
 //import IrDecodedFrame from './IrDecodedFrame';
 import IrSignal from './IrSignal';
 import IrControlCode from './IrControlCode';
@@ -19,7 +19,7 @@ const { TextArea } = Input;
 const { Text, Title, Paragraph } = Typography;
 
 interface State {
-  msb_first: Boolean,
+  msb_first: boolean,
   ir_mark_and_spaces: MarkAndSpaceMicros[],
   ir_decoded_frames: DecordedInfraredRemoteFrame[],
   ir_control_codes: InfraredRemoteControlCode[],
@@ -158,19 +158,6 @@ useEffect(
     <>
       <Space className='content' direction='vertical' size='middle' style={{ display: 'flex' }}>
         <Card size='small' title={<Title level={4}>解析する赤外線リモコン信号</Title>}>
-          <Paragraph>
-            <Text>ビットオーダー&nbsp;</Text>
-            <Radio.Group
-              name='radiogroup'
-              defaultValue={state.msb_first === true ? 1 : 0}
-              onChange={e => { setState({ ...state, msb_first: e.target.value }) }}
-              optionType='button'
-              buttonStyle='solid'
-            >
-              <Radio value={0}>Least Significant Bit (LSB) first</Radio>
-              <Radio value={1}>Most Significant Bit (MSB) first</Radio>
-            </Radio.Group>
-          </Paragraph>
           <Button type='primary' style={{ marginBottom: 3 }} onClick={handleReset}>Reset</Button>
           <TextArea
             rows={6}
@@ -182,17 +169,15 @@ useEffect(
         </Card>
         <IrSignal ir_mark_and_spaces={state.ir_mark_and_spaces} />
         <Card size='small' title={<Title level={4}>復号信号</Title>}>
+          <Switch unCheckedChildren="Least Significant Bit (LSB) first order" checkedChildren="Most Significant Bit (MSB) first order"
+            onChange={(checked, _event) => { setState({ ...state, msb_first: checked }) }}
+            checked={state.msb_first}
+            id={'bit-order-selector'}
+          />
           {state.ir_decoded_frames.map((decorded_frame: DecordedInfraredRemoteFrame, index: number) => {
             return <IrDecordedFrame key={'IrDecordedFrame' + index} msb_first={state.msb_first} decorded_frame={decorded_frame} index={index} />;
           })}
         </Card>
-        {/*
-        <Card size='small' title={<Title level={4}>復号(Decorded)信号</Title>}>
-          {state.ir_decoded_frames.map((decoded_frame: InfraredRemoteDecordedFrame, index: number) => {
-            return <IrDecodedFrame key={'IrDecodedFrame' + index} msb_first={state.msb_first} decorded_frame={decoded_frame} index={index} />;
-          })}
-        </Card>
-        */}
         <IrControlCode ir_control_codes={state.ir_control_codes} />
       </Space>
       <Text className='App-footer' >vite-react-rust-wasm-project &copy;2023 Akihiro Yamamoto</Text>

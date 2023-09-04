@@ -164,6 +164,22 @@ fn parse_pigpio_irrp_format<'a>(
     )(s)
 }
 
+// C配列の文字列を解析する
+fn parse_clang_array_format<'a>(
+    s: &'a str,
+) -> IResult<&'a str, Vec<MarkAndSpaceMicros>, VerboseError<&'a str>> {
+    let (s, _) = multispace0(s)?;
+    delimited(
+        char('{'),
+        many1(delimited(
+            multispace0,
+            json_array_mark_and_space,
+            multispace0,
+        )),
+        char('}'),
+    )(s)
+}
+
 // 入力文字列のパーサー
 pub fn parse_infrared_code_text<'a>(
     input: &'a str,
@@ -172,6 +188,7 @@ pub fn parse_infrared_code_text<'a>(
         parse_onoff_pair_format,
         parse_json_array_format,
         parse_pigpio_irrp_format,
+        parse_clang_array_format,
     ))(input)
     .finish()
     .map(|(_, v)| v)

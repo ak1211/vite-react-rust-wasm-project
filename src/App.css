@@ -72,3 +72,9 @@
 button {
   font-size: calc(10px + 2vmin);
 }
+
+#bit-order-selector.ant-switch-checked {}
+
+#bit-order-selector:not(.ant-switch-checked) {
+  background-color: #5b8c00;
+}
