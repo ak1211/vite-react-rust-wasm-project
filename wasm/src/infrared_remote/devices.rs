@@ -3,3 +3,4 @@ pub mod hitachi_hvac;
 pub mod mitsubishi_electric_hvac;
 pub mod panasonic_hvac;
 pub mod sirc;
+pub mod toshiba_tv;

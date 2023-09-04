@@ -5,12 +5,10 @@
 use crate::infrared_remote::{IrCarrierCounter, MarkAndSpaceMicros, Microseconds};
 use nom::{
     branch::{alt, permutation},
-    bytes::complete::{escaped_transform, take_while1, take_while_m_n},
-    character::complete::{
-        alphanumeric1 as alphanumeric, anychar, char, digit1, multispace0, none_of, one_of,
-    },
+    bytes::complete::{escaped_transform, take_while_m_n},
+    character::complete::{char, digit1, multispace0, none_of},
     combinator::{map, map_res, opt, value},
-    error::{convert_error, ParseError, VerboseError},
+    error::{convert_error, VerboseError},
     multi::many1,
     sequence::{delimited, tuple},
     Finish, IResult,

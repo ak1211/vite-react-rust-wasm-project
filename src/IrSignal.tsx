@@ -2,7 +2,7 @@
 // Licensed under the MIT License <https://spdx.org/licenses/MIT.html>
 // See LICENSE file in the project root for full license information.
 //
-import { MarkAndSpaceMicros } from './types';
+import { MarkAndSpaceMicros } from '../wasm/pkg/wasm';
 import { Line, Datum } from '@ant-design/charts';
 import { Card, Divider, Typography, Table } from 'antd';
 import 'antd/dist/antd.min.css';
@@ -76,7 +76,7 @@ const IrSignal = (props: Props): JSX.Element => {
   ];
 
   return (
-    <Card size='small' title={<Title level={4}>伝送信号</Title>}>
+    <Card size='small' title={<Title level={4}>受信信号</Title>}>
       <Line {...config} />
       <Divider>マークアンドスペース</Divider>
       <Table

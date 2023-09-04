@@ -2,16 +2,25 @@
 // Licensed under the MIT License <https://spdx.org/licenses/MIT.html>
 // See LICENSE file in the project root for full license information.
 //
+import { DecordedInfraredRemoteFrame } from '../wasm/pkg/wasm';
 import { Statistic, Typography, Descriptions } from 'antd'
-import { InfraredRemoteDecordedFrame } from './types'
 import 'antd/dist/antd.min.css'
 
-const { Text } = Typography
+const { Text, Title } = Typography
 
 type Props = {
   msb_first: Boolean,
   index: number,
-  decorded_frame: InfraredRemoteDecordedFrame,
+  decorded_frame: DecordedInfraredRemoteFrame,
+}
+
+// オクテット単位にまとめる
+const to_octets = (bitstream: Uint8Array): Uint8Array[] => {
+  var output: Uint8Array[] = []
+  for (let i = 0; i < bitstream.length; i += 8) {
+    output.push(bitstream.slice(i, i + 8))
+  }
+  return output
 }
 
 // 16進表記にする
@@ -41,11 +50,12 @@ const descriptions_item = (msb_first: Boolean, key: any, label: string, bitstrea
 };
 
 //
-const ir_frame_value = (decorded_frame: InfraredRemoteDecordedFrame): IrFrameValue => {
+const ir_frame_value = (decorded_frame: DecordedInfraredRemoteFrame): IrFrameValue => {
   if ('Aeha' in decorded_frame) {
+    const octets = to_octets(decorded_frame.Aeha);
     return {
       frame_label: 'AEHA',
-      items: decorded_frame.Aeha.octets.map((x, index) => {
+      items: octets.map((x, index) => {
         let offset = 8 * index;
         let label = 'offset ' + offset;
         return {
@@ -58,35 +68,18 @@ const ir_frame_value = (decorded_frame: InfraredRemoteDecordedFrame): IrFrameVal
     return {
       frame_label: 'NEC',
       items: [
-        { item_label: 'custom0', value: decorded_frame.Nec.custom0 },
-        { item_label: 'custom1', value: decorded_frame.Nec.custom1 },
-        { item_label: 'data0', value: decorded_frame.Nec.data0 },
-        { item_label: 'data1', value: decorded_frame.Nec.data1 },
+        { item_label: 'Address', value: decorded_frame.Nec.slice(0, 8) },
+        { item_label: '(Logical Inverse) Address', value: decorded_frame.Nec.slice(8, 16) },
+        { item_label: 'Command', value: decorded_frame.Nec.slice(16, 24) },
+        { item_label: '(Logical Inverse) Command', value: decorded_frame.Nec.slice(24, 32) },
       ],
     };
-  } else if ('Sirc12' in decorded_frame) {
+  } else if ('Sirc' in decorded_frame) {
     return {
-      frame_label: 'SIRC12',
+      frame_label: 'SIRC',
       items: [
-        { item_label: 'command', value: decorded_frame.Sirc12.command },
-        { item_label: 'address', value: decorded_frame.Sirc12.address },
-      ],
-    };
-  } else if ('Sirc15' in decorded_frame) {
-    return {
-      frame_label: 'SIRC15',
-      items: [
-        { item_label: 'command', value: decorded_frame.Sirc15.command },
-        { item_label: 'address', value: decorded_frame.Sirc15.address },
-      ],
-    };
-  } else if ('Sirc20' in decorded_frame) {
-    return {
-      frame_label: 'SIRC20',
-      items: [
-        { item_label: 'command', value: decorded_frame.Sirc20.command },
-        { item_label: 'address', value: decorded_frame.Sirc20.address },
-        { item_label: 'extended', value: decorded_frame.Sirc20.extended },
+        { item_label: 'command', value: decorded_frame.Sirc.slice(0, 5) },
+        { item_label: 'address', value: decorded_frame.Sirc.slice(5) },
       ],
     };
   } else if ('Unknown' in decorded_frame) {
@@ -98,7 +91,6 @@ const ir_frame_value = (decorded_frame: InfraredRemoteDecordedFrame): IrFrameVal
     throw new Error('unimplemented')
   }
 }
-
 
 //
 const display_decorded_frame = (msb_first: Boolean, frame_value: IrFrameValue): JSX.Element => {
@@ -115,10 +107,10 @@ const IrDecordedFrame = (props: Props): JSX.Element => {
   const value: IrFrameValue = ir_frame_value(props.decorded_frame);
   return (<>
     <Descriptions title={'Frame# ' + (1 + props.index)} >
-      <Descriptions.Item label={'code'}>
-        <Text>
+      <Descriptions.Item >
+        <Title level={5}>
           {value.items.map(v => { return to_hex_string(props.msb_first, v.value) })}
-        </Text>
+        </Title >
       </Descriptions.Item>
     </Descriptions>
     <Descriptions
