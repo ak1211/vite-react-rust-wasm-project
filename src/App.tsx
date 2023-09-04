@@ -7,7 +7,7 @@ import {
   wasm_parse_infrared_code, wasm_decord_receiving_data, wasm_decord_ir_frames,
 } from '../wasm/pkg/wasm'
 import { useEffect, useState } from 'react';
-import { Button, Input, Alert, Card, Radio, Space, Typography, Switch } from 'antd'
+import { Button, Input, Alert, Card, Space, Typography, Switch } from 'antd'
 //import IrDecodedFrame from './IrDecodedFrame';
 import IrSignal from './IrSignal';
 import IrControlCode from './IrControlCode';
@@ -16,7 +16,7 @@ import 'antd/dist/antd.min.css';
 import './App.css';
 
 const { TextArea } = Input;
-const { Text, Title, Paragraph } = Typography;
+const { Text, Title } = Typography;
 
 interface State {
   msb_first: boolean,
