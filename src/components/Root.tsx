@@ -20,11 +20,11 @@ const nav_items = [
 //
 const Root: React.FC = () => {
   const location = useLocation();
-  const [selectedKey, setSelectedKey] = useState<string | undefined>([...nav_items].reverse().find(_item => location.pathname === _item.path)?.key)
+  const [selectedKey, setSelectedKey] = useState<string | undefined>([...nav_items].reverse().find(_item => location.pathname.includes(_item.path))?.key)
 
   useEffect(() => { init() }, []);
   useEffect(() => {
-    setSelectedKey([...nav_items].reverse().find(_item => location.pathname === _item.path)?.key)
+    setSelectedKey([...nav_items].reverse().find(_item => location.pathname.includes(_item.path))?.key)
   }, [location])
   //
   return (
