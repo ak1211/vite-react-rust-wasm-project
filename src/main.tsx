@@ -37,7 +37,7 @@ const router = createBrowserRouter([
       },
     ]
   }
-]);
+], { basename: "/vite-react-rust-wasm-project", });
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
