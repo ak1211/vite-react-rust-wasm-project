@@ -40,7 +40,7 @@ export const rxTextState = atom<string>({
 });
 
 //
-type SerialPortReader = ReadableStreamDefaultReader<AllowSharedBufferSource>;
+type SerialPortReader = ReadableStreamDefaultReader;
 export const serialPortState = atom<{ port: SerialPort, reader: SerialPortReader } | undefined>({
 	key: 'serialPortState',
 	default: undefined,

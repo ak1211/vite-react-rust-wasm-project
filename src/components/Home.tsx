@@ -2,9 +2,8 @@ import { NavLink } from 'react-router-dom';
 import React from 'react';
 import { Card, Typography } from 'antd';
 import ReactEmbedGist from 'react-embed-gist';
-import { LoadingOutlined } from '@ant-design/icons';
 
-const { Title, Text } = Typography;
+const { Title } = Typography;
 
 //
 const Home: React.FC = () => {
@@ -33,7 +32,6 @@ const Home: React.FC = () => {
 					gist='ak1211/b87f4dac2cc6ca4c6a9fb9e50501973a'
 					wrapperClass="gist__bash"
 					titleClass="gist__title"
-					loadingFallback={<LoadingOutlined />}
 				/>
 			</Card>
 			<p>このファームウェアのソースコードをArduino IDEを使用してATOM Liteに書き込んでください</p>
