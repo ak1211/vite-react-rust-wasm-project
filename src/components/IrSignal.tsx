@@ -2,11 +2,10 @@
 // Licensed under the MIT License <https://spdx.org/licenses/MIT.html>
 // See LICENSE file in the project root for full license information.
 //
-import { MarkAndSpaceMicros } from '../wasm/pkg/wasm';
+import { MarkAndSpaceMicros } from '../../wasm/pkg/wasm';
 import { Line, Datum } from '@ant-design/charts';
 import { Card, Divider, Typography, Table } from 'antd';
 import 'antd/dist/antd.min.css';
-import './App.css';
 
 const { Title } = Typography;
 

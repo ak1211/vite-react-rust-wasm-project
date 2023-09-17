@@ -5,18 +5,18 @@
 import {
   MarkAndSpaceMicros, InfraredRemoteControlCode, DecordedInfraredRemoteFrame,
   wasm_parse_infrared_code, wasm_decord_receiving_data, wasm_decord_ir_frames,
-} from '../wasm/pkg/wasm'
+} from '../../wasm/pkg/wasm'
 import { useEffect, useState } from 'react';
-import { Button, Input, Alert, Card, Space, Typography, Switch } from 'antd'
-//import IrDecodedFrame from './IrDecodedFrame';
+import { useRecoilValue } from 'recoil';
+import { message, Button, Table, Input, Alert, Card, Space, Typography, Switch } from 'antd'
+import type { ColumnsType } from 'antd/es/table'
 import IrSignal from './IrSignal';
 import IrControlCode from './IrControlCode';
 import IrDecordedFrame from './IrDecordedFrame';
-import 'antd/dist/antd.min.css';
-import './App.css';
+import * as SC from './SerialConnectionEffect';
 
 const { TextArea } = Input;
-const { Text, Title } = Typography;
+const { Title, Text } = Typography;
 
 interface State {
   msb_first: boolean,
@@ -24,6 +24,8 @@ interface State {
   ir_decoded_frames: DecordedInfraredRemoteFrame[],
   ir_control_codes: InfraredRemoteControlCode[],
   input_text: string,
+  confirmed_rx_json_data_length: number,
+  automatically_paste: boolean,
   alert: {
     type: 'success' | 'info' | 'warning' | 'error',
     message: string,
@@ -36,6 +38,8 @@ const initState: State = {
   ir_decoded_frames: [],
   ir_control_codes: [],
   input_text: '',
+  confirmed_rx_json_data_length: 0,
+  automatically_paste: false,
   alert: {
     type: 'info',
     message: '入力してね。',
@@ -43,7 +47,12 @@ const initState: State = {
 };
 
 //
-const App = (): JSX.Element => {
+export default function InfraredRemoteAnalyzer() {
+  //
+  const [messageApi, contextHolder] = message.useMessage();
+  //
+  const rxJsonData = useRecoilValue(SC.rxJsonDataState);
+  //
   const [state, setState] = useState<State>(initState)
 
   const handleReset = () => {
@@ -52,11 +61,25 @@ const App = (): JSX.Element => {
 
   const handleParse = (input_text: string) => {
     if (input_text) {
-      setState({ ...state, input_text: input_text });
+      setState(prev => ({ ...prev, input_text: input_text }));
     } else {
       handleReset();
     }
   }
+
+  useEffect(() => {
+    if (rxJsonData.length != state.confirmed_rx_json_data_length) {
+      const newone: number = state.confirmed_rx_json_data_length;
+      const text: string = `new IR code (#${newone}) arrival.`;
+      messageApi.open({ key: text, type: 'success', content: text, });
+      setState(prev => ({ ...prev, confirmed_rx_json_data_length: rxJsonData.length }));
+      if (state.automatically_paste) {
+        const new_input_text = JSON.stringify(rxJsonData[newone].rawData);
+        setState(prev => ({ ...prev, input_text: new_input_text, }));
+      }
+    }
+  }, [rxJsonData.length, state]);
+
 
   // ユーザー入力を解析する
   useEffect(
@@ -69,12 +92,12 @@ const App = (): JSX.Element => {
             alert: { type: 'success', message: 'いいですね。' }
           }))
         } else {
-          setState(state => ({ ...state, ir_mark_and_spaces: [] }))
+          setState(prev => ({ ...prev, ir_mark_and_spaces: [] }))
         }
       } catch (err) {
         if (err instanceof Error) {
           let msg = err.message;
-          setState(state => ({ ...state, ir_mark_and_spaces: [], alert: { type: 'error', message: msg } }))
+          setState(prev => ({ ...prev, ir_mark_and_spaces: [], alert: { type: 'error', message: msg } }))
         } else {
           throw err
         }
@@ -93,12 +116,12 @@ const App = (): JSX.Element => {
             alert: { type: 'success', message: 'いいですね。' }
           }))
         } else {
-          setState(state => ({ ...state, ir_decoded_frames: [] }))
+          setState(prev => ({ ...prev, ir_decoded_frames: [] }))
         }
       } catch (err) {
         if (err instanceof Error) {
           let msg = err.message;
-          setState(state => ({ ...state, ir_decoded_frames: [], alert: { type: 'error', message: msg } }))
+          setState(prev => ({ ...prev, ir_decoded_frames: [], alert: { type: 'error', message: msg } }))
         } else {
           throw err
         }
@@ -106,47 +129,22 @@ const App = (): JSX.Element => {
     }
     , [state.ir_mark_and_spaces])
 
-  /*
-useEffect(
-  () => {
-    try {
-      if (state.ir_demodulated_frames.length) {
-        const ir_decoded_frames = state.ir_demodulated_frames.map((v) => wasm_decode_phase3(v));
-        setState(state => ({
-          ...state, ir_decoded_frames: ir_decoded_frames,
-          alert: { type: 'success', message: 'いいですね。' }
-        }))
-      } else {
-        setState(state => ({ ...state, ir_decoded_frames: [] }))
-      }
-    } catch (err) {
-      if (err instanceof Error) {
-        let msg = err.message;
-        setState(state => ({ ...state, ir_decoded_frames: [], alert: { type: 'error', message: msg } }))
-      } else {
-        throw err
-      }
-    }
-  }
-  , [state.ir_demodulated_frames])
-  */
-
   useEffect(
     () => {
       try {
         if (state.ir_decoded_frames.length) {
           const ir_control_codes = wasm_decord_ir_frames(state.ir_decoded_frames);
-          setState(state => ({
-            ...state, ir_control_codes: ir_control_codes,
+          setState(prev => ({
+            ...prev, ir_control_codes: ir_control_codes,
             alert: { type: 'success', message: 'いいですね。' }
           }))
         } else {
-          setState(state => ({ ...state, ir_control_codes: [] }))
+          setState(prev => ({ ...prev, ir_control_codes: [] }))
         }
       } catch (err) {
         if (err instanceof Error) {
           let msg = err.message;
-          setState(state => ({ ...state, ir_control_codes: [], alert: { type: 'error', message: msg } }))
+          setState(prev => ({ ...prev, ir_control_codes: [], alert: { type: 'error', message: msg } }))
         } else {
           throw err
         }
@@ -154,9 +152,75 @@ useEffect(
     }
     , [state.ir_decoded_frames])
 
+  interface RxJsonSchemaWithIndexAndKey extends SC.RxJsonSchema {
+    index: number,
+    key: any,
+  };
+
+  const columns: ColumnsType<RxJsonSchemaWithIndexAndKey> = [
+    {
+      width: '5em',
+      title: 'Index',
+      dataIndex: 'index',
+      key: 'index',
+      render: (n: number) => {
+        return (<>#{n}</>)
+      }
+    },
+    {
+      width: '9em',
+      title: 'Timestamp',
+      dataIndex: 'timestamp',
+      key: 'timestamp',
+      render: (n) => { return (n) }
+    },
+    {
+      title: 'rawData',
+      dataIndex: 'rawData',
+      key: 'rawData',
+      render: (data: number[]) => {
+        const original: string = data.toString();
+        const cropped: string = original.substring(0, 200);
+        return ((original.length === cropped.length) ? original : cropped + ' ....');
+      }
+    },
+  ]
+
   return (
     <>
-      <Space className='content' direction='vertical' size='middle' style={{ display: 'flex' }}>
+      {contextHolder}
+      <Title>赤外線リモコン信号解析</Title>
+      <Space direction='vertical' size='middle'>
+        <Card
+          size='small'
+          title={<Title level={4}>外部デバイスから受信した信号</Title>}
+        >
+          <Table
+            onRow={(record) => {
+              return {
+                onClick: (_event) => {
+                  messageApi.open({ type: 'success', content: '貼り付けました。' })
+                  setState(prev => ({ ...prev, input_text: JSON.stringify(record.rawData) }));
+                },
+                onDoubleClick: (_event) => { },
+                onMouseEnter: (_event) => { },
+                onMouseLeave: (_event) => { },
+              }
+            }}
+            dataSource={rxJsonData.map((item, index) => ({ ...item, index: index, key: item.timestamp, }))}
+            columns={columns}
+            scroll={{ y: 240 }}
+          />
+          <Space>
+            <Text>自動貼り付け</Text>
+            <Switch
+              title={"Automatically paste new ones into textarea."}
+              onChange={(checked) => {
+                setState(prev => ({ ...prev, automatically_paste: checked }))
+              }}
+            />
+          </Space>
+        </Card>
         <Card size='small' title={<Title level={4}>解析する赤外線リモコン信号</Title>}>
           <Button type='primary' style={{ marginBottom: 3 }} onClick={handleReset}>Reset</Button>
           <TextArea
@@ -170,7 +234,7 @@ useEffect(
         <IrSignal ir_mark_and_spaces={state.ir_mark_and_spaces} />
         <Card size='small' title={<Title level={4}>復号信号</Title>}>
           <Switch unCheckedChildren="Least Significant Bit (LSB) first order" checkedChildren="Most Significant Bit (MSB) first order"
-            onChange={(checked, _event) => { setState({ ...state, msb_first: checked }) }}
+            onChange={(checked, _event) => setState(prev => ({ ...prev, msb_first: checked }))}
             checked={state.msb_first}
             id={'bit-order-selector'}
           />
@@ -179,10 +243,7 @@ useEffect(
           })}
         </Card>
         <IrControlCode ir_control_codes={state.ir_control_codes} />
-      </Space>
-      <Text className='App-footer' >vite-react-rust-wasm-project &copy;2023 Akihiro Yamamoto</Text>
+      </Space >
     </>
   );
 }
-
-export default App;

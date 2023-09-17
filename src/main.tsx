@@ -1,13 +1,48 @@
+import React from 'react';
 import ReactDOM from 'react-dom/client'
-import React from 'react'
-import App from './App.tsx'
-import './index.css'
-import init from '../wasm/pkg/wasm'
+import {
+  createBrowserRouter,
+  RouterProvider,
+} from "react-router-dom";
+import { RecoilRoot } from 'recoil';
+import Root from './components/Root';
+import Home from './components/Home';
+import NotFound from './components/NotFound';
+import InfraredRemoteAnalyzer from './components/InfraredRemoteAnalyzer.tsx';
+import ErrorPage from './error-page';
+import Settings from './components/Settings.tsx';
+import './index.css';
 
-init();
+const router = createBrowserRouter([
+  {
+    path: "/",
+    element: <Root />,
+    errorElement: <ErrorPage />,
+    children: [
+      {
+        path: "/",
+        element: <Home />
+      },
+      {
+        path: "ir-analyzer",
+        element: <InfraredRemoteAnalyzer />
+      },
+      {
+        path: "settings",
+        element: <Settings />
+      },
+      {
+        path: "*",
+        element: <NotFound />
+      },
+    ]
+  }
+]);
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
-    <App />
+    <RecoilRoot>
+      <RouterProvider router={router} />
+    </RecoilRoot>
   </React.StrictMode>,
 )

@@ -2,7 +2,7 @@
 // Licensed under the MIT License <https://spdx.org/licenses/MIT.html>
 // See LICENSE file in the project root for full license information.
 //
-import { InfraredRemoteControlCode } from '../wasm/pkg/wasm'
+import { InfraredRemoteControlCode } from '../../wasm/pkg/wasm'
 import { Space, Empty, Descriptions, Card, Statistic, Typography } from 'antd'
 import 'antd/dist/antd.min.css'
 

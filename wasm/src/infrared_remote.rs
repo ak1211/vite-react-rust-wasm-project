@@ -35,10 +35,8 @@ pub fn pack_to_octets(bits: &[Bit]) -> Vec<[Bit; 8]> {
 pub enum InfraredRemoteError {
     #[error("input is empty.")]
     InputIsEmptyError,
-    #[error("unknown protocol.")]
-    UnknownProtocolError,
-    #[error("insufficient input data. (expected {0})")]
-    InsufficientInputData(&'static str),
+    #[error("insufficient input data. (expected {0} bits, actual {1} bits)")]
+    InsufficientInputData(usize, usize),
 }
 
 /// ずれ時間の許容範囲はとりあえず 300us

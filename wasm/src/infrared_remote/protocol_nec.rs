@@ -17,6 +17,14 @@ pub const LEADER: MarkAndSpaceMicros = MarkAndSpace {
     space: Microseconds(8 * TIME_BASE.0),
 };
 
+/// リピートパルス
+/// H-level width, 16 * T(562us) = typical 8992us
+/// L-level width, 4 * T(562us) = typical 2248 us
+pub const REPEAT: MarkAndSpaceMicros = MarkAndSpace {
+    mark: Microseconds(16 * TIME_BASE.0),
+    space: Microseconds(4 * TIME_BASE.0),
+};
+
 /// 0を意味する信号
 /// H-level width, 1 * T(562us) = typical 562us
 /// L-level width, 1 * T(562us) = typical 562us
@@ -63,6 +71,20 @@ pub fn compare_leader_pulse(tolerance: Microseconds, test: &MarkAndSpaceMicros) 
             end: LEADER.space + tolerance,
         },
     };
-
     nec.mark.contains(&test.mark) && nec.space.contains(&test.space)
+}
+
+///
+pub fn compare_repeat_pulse(tolerance: Microseconds, test: &MarkAndSpaceMicros) -> bool {
+    let nec_repeat: MarkAndSpace<Range<Microseconds>> = MarkAndSpace {
+        mark: Range {
+            start: REPEAT.mark - tolerance,
+            end: REPEAT.mark + tolerance,
+        },
+        space: Range {
+            start: REPEAT.space - tolerance,
+            end: REPEAT.space + tolerance,
+        },
+    };
+    nec_repeat.mark.contains(&test.mark) && nec_repeat.space.contains(&test.space)
 }

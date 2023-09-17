@@ -2,7 +2,7 @@
 // Licensed under the MIT License <https://spdx.org/licenses/MIT.html>
 // See LICENSE file in the project root for full license information.
 //
-import { DecordedInfraredRemoteFrame } from '../wasm/pkg/wasm';
+import { DecordedInfraredRemoteFrame } from '../../wasm/pkg/wasm';
 import { Statistic, Typography, Descriptions } from 'antd'
 import 'antd/dist/antd.min.css'
 
@@ -73,6 +73,11 @@ const ir_frame_value = (decorded_frame: DecordedInfraredRemoteFrame): IrFrameVal
         { item_label: 'Command', value: decorded_frame.Nec.slice(16, 24) },
         { item_label: '(Logical Inverse) Command', value: decorded_frame.Nec.slice(24, 32) },
       ],
+    };
+  } else if ('NecRepeat' in decorded_frame) {
+    return {
+      frame_label: 'NEC (Repeat)',
+      items: [],
     };
   } else if ('Sirc' in decorded_frame) {
     return {

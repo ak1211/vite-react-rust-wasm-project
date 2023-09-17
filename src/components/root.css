@@ -1,0 +1,40 @@
+#root {
+  display: flex;
+  flex-flow: columns;
+  min-height: 100vh;
+}
+
+.ant-layout-header {
+  position: fixed;
+  height: 64px;
+  width: 100%;
+  top: 0;
+  z-index: 10000;
+}
+
+.ant-layout-header>.ant-menu {
+  font-family: Arial, Helvetica, sans-serif;
+  font-size: larger;
+}
+
+.ant-layout-footer {
+  text-align: center;
+}
+
+.content {
+  margin: 0 auto;
+  margin-top: 64px;
+  padding: 24px;
+  max-width: 1600px;
+  font-size: larger;
+}
+
+.App-link {
+  color: #61dafb;
+}
+
+#bit-order-selector.ant-switch-checked {}
+
+#bit-order-selector:not(.ant-switch-checked) {
+  background-color: #5b8c00;
+}

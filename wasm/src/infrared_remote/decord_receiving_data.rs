@@ -11,8 +11,9 @@ use std::fmt;
 pub enum DecordedInfraredRemoteFrame {
     Aeha(Vec<Bit>),
     Nec(Vec<Bit>),
+    NecRepeat(()),
     Sirc(Vec<Bit>),
-    Unknown(Vec<MarkAndSpaceMicros>),
+    Unknown(()),
 }
 
 impl fmt::Display for DecordedInfraredRemoteFrame {
@@ -20,6 +21,7 @@ impl fmt::Display for DecordedInfraredRemoteFrame {
         match self {
             DecordedInfraredRemoteFrame::Aeha(bits) => write!(f, "AEHA {}", show_bit_pattern(bits)),
             DecordedInfraredRemoteFrame::Nec(bits) => write!(f, "NEC {}", show_bit_pattern(bits)),
+            DecordedInfraredRemoteFrame::NecRepeat(_) => write!(f, "NEC (repeat)"),
             DecordedInfraredRemoteFrame::Sirc(bits) => write!(f, "SIRC {}", show_bit_pattern(bits)),
             DecordedInfraredRemoteFrame::Unknown(_) => write!(f, "Unknown protocol"),
         }
@@ -36,37 +38,39 @@ pub fn decord_receiving_data(
     frames
         .map(|single_frame| {
             // リーダーパルスとそれ以外に分ける
-            let cons = single_frame
+            let (leader, trailer) = single_frame
                 .split_first()
                 .ok_or(InfraredRemoteError::InputIsEmptyError)?;
             // 信号を復調する
-            let result = match cons {
-                (leader, trailer) if protocol_aeha::compare_leader_pulse(TOLERANCE, leader) => {
-                    let mut bits = trailer
-                        .iter()
-                        .map(|&item| protocol_aeha::demodulate(item))
-                        .collect::<Vec<Bit>>();
-                    let _ = bits.pop(); // remove stop bit
-                    DecordedInfraredRemoteFrame::Aeha(bits)
+            if protocol_aeha::compare_leader_pulse(TOLERANCE, leader) {
+                let mut bits = trailer
+                    .iter()
+                    .map(|&item| protocol_aeha::demodulate(item))
+                    .collect::<Vec<Bit>>();
+                let _ = bits.pop(); // remove stop bit
+                Ok(DecordedInfraredRemoteFrame::Aeha(bits))
+            } else if protocol_nec::compare_leader_pulse(TOLERANCE, leader) {
+                let mut bits = trailer
+                    .iter()
+                    .map(|&item| protocol_nec::demodulate(item))
+                    .collect::<Vec<Bit>>();
+                let _ = bits.pop(); // remove stop bit
+                if bits.len() < 32 {
+                    Err(InfraredRemoteError::InsufficientInputData(32, bits.len()).into())
+                } else {
+                    Ok(DecordedInfraredRemoteFrame::Nec(bits))
                 }
-                (leader, trailer) if protocol_nec::compare_leader_pulse(TOLERANCE, leader) => {
-                    let mut bits = trailer
-                        .iter()
-                        .map(|&item| protocol_nec::demodulate(item))
-                        .collect::<Vec<Bit>>();
-                    let _ = bits.pop(); // remove stop bit
-                    DecordedInfraredRemoteFrame::Nec(bits)
-                }
-                (leader, trailer) if protocol_sirc::compare_leader_pulse(TOLERANCE, leader) => {
-                    let bits = trailer
-                        .iter()
-                        .map(|&item| protocol_sirc::demodulate(item))
-                        .collect::<Vec<Bit>>();
-                    DecordedInfraredRemoteFrame::Sirc(bits)
-                }
-                _ => DecordedInfraredRemoteFrame::Unknown(data_stream.to_owned()),
-            };
-            Ok(result)
+            } else if protocol_sirc::compare_leader_pulse(TOLERANCE, leader) {
+                let bits = trailer
+                    .iter()
+                    .map(|&item| protocol_sirc::demodulate(item))
+                    .collect::<Vec<Bit>>();
+                Ok(DecordedInfraredRemoteFrame::Sirc(bits))
+            } else if protocol_nec::compare_repeat_pulse(TOLERANCE, leader) {
+                Ok(DecordedInfraredRemoteFrame::NecRepeat(()))
+            } else {
+                Ok(DecordedInfraredRemoteFrame::Unknown(()))
+            }
         })
         .collect::<Result<Vec<DecordedInfraredRemoteFrame>, Box<dyn Error>>>()
 }
