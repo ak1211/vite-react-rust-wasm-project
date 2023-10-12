@@ -206,7 +206,7 @@ const SerialConnectionEffect: React.FC = () => {
 				navigator.serial.removeEventListener("disconnect", handleDisconnectEvent);
 			}
 		};
-	}, [handleDisconnectEvent, handleDisconnectEvent, handleOpenSerialPort, handleCloseSerialPort, handleSoftwareResetSerialPort]);
+	}, [handleConnectEvent, handleDisconnectEvent, handleOpenSerialPort, handleCloseSerialPort, handleSoftwareResetSerialPort]);
 	//
 	return <></>;
 }
